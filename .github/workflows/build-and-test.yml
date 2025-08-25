@@ -39,31 +39,58 @@ jobs:
       - name: Add Qt bin to PATH and show qmake
         shell: bash
         run: |
-          # install-qt-action puts Qt under $HOME/Qt/<version>/gcc_64 (for linux)
-          QT_DIR_CAND="$HOME/Qt/${{ env.QT_VERSION }}/gcc_64/bin"
-          if [ -d "$QT_DIR_CAND" ]; then
-            echo "Found Qt bin dir: $QT_DIR_CAND"
-            export PATH="$QT_DIR_CAND:$PATH"
-            echo "::add-path::$QT_DIR_CAND" || true
-          else
-            echo "Warning: expected Qt bin dir $QT_DIR_CAND not found — searching..."
-            # try to find qmake provided by the action
-            QMAKE_PATH=$(find $HOME -maxdepth 3 -type f -name qmake 2>/dev/null | head -n1 || true)
-            if [ -n "$QMAKE_PATH" ]; then
-              QT_DIR=$(dirname "$QMAKE_PATH")
-              echo "Found qmake at $QMAKE_PATH; adding $QT_DIR to PATH"
-              export PATH="$QT_DIR:$PATH"
-              echo "::add-path::$QT_DIR" || true
-            else
-              echo "ERROR: qmake not found. The install-qt-action may have changed layout."
-              ls -la $HOME || true
-              exit 1
+          set -euo pipefail
+
+          echo "Searching for qmake installed by install-qt-action..."
+
+          # a few common candidate locations
+          CANDIDATES=(
+            "$HOME/Qt/${{ env.QT_VERSION }}/gcc_64/bin/qmake"
+            "$HOME/Qt/${{ env.QT_VERSION }}/clang_64/bin/qmake"
+            "$HOME/Qt/${{ env.QT_VERSION }}/bin/qmake"
+            "/opt/Qt/${{ env.QT_VERSION }}/gcc_64/bin/qmake"
+            "/opt/Qt/${{ env.QT_VERSION }}/bin/qmake"
+            "/usr/lib/qt6/bin/qmake"
+          )
+
+          FOUND_QMAKE=""
+          for c in "${CANDIDATES[@]}"; do
+            if [ -x "$c" ]; then
+              FOUND_QMAKE="$c"
+              break
             fi
+          done
+
+          # If not found in common places, try a shallow find in $HOME
+          if [ -z "$FOUND_QMAKE" ]; then
+            FOUND_QMAKE=$(find "$HOME" -maxdepth 5 -type f -name 'qmake*' -executable 2>/dev/null | head -n1 || true)
           fi
+
+          # If still not found, attempt to install the distro package as a fallback
+          if [ -z "$FOUND_QMAKE" ]; then
+            echo "qmake not found in Qt action install. Trying apt fallback: qt6-qmake..."
+            sudo apt-get update -y
+            sudo apt-get install -y qt6-qmake || true
+            FOUND_QMAKE=$(command -v qmake || true)
+          fi
+
+          if [ -z "$FOUND_QMAKE" ]; then
+            echo "ERROR: qmake not found after searching common locations and apt fallback."
+            echo "Home directory listing (top-level):"
+            ls -la "$HOME" || true
+            echo "You can inspect the full job log to see where the action installed Qt."
+            exit 1
+          fi
+
+          QT_DIR=$(dirname "$FOUND_QMAKE")
+          echo "Found qmake: $FOUND_QMAKE"
+          echo "Adding $QT_DIR to PATH for the remainder of this job."
+          # persist to PATH for following steps
+          echo "$QT_DIR" >> $GITHUB_PATH
 
           echo "qmake -v ->"
           qmake -v || true
-          which qmake || true
+          echo "which qmake -> $(which qmake || true)"
 
       - name: Locate .pro file (auto) and configure
         shell: bash
