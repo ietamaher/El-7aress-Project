@@ -1,0 +1,8 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource>
+        <file alias="icons/main_menu.png">/home/rapit/Desktop/Jetson-Xavier/AGX-02-2025/El7aress-v4.1/icons/main.png</file>
+        <file alias="icons/reticle_menu.png">/home/rapit/Desktop/Jetson-Xavier/AGX-02-2025/El7aress-v4.1/icons/reticle.png</file>
+        <file alias="icons/color_menu.png">/home/rapit/Desktop/Jetson-Xavier/AGX-02-2025/El7aress-v4.1/icons/colors.png</file>
+    </qresource>
+</RCC>

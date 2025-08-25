@@ -1,0 +1,27 @@
+# build artifacts
+build/
+cmake-build-*/
+*.o
+*.obj
+*.so
+*.a
+*.dll
+*.exe
+
+# Qt creator / Qt files
+*.pro.user*
+*.qmake.stash
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# logs and data
+logs/
+*.log
+
+# do NOT commit secrets
+secrets/
+*.pem
