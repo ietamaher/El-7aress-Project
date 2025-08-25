@@ -120,16 +120,32 @@ jobs:
           echo "Available Qt modules:"
           "$FOUND_QMAKE" -query QT_INSTALL_LIBS || true
 
-      - name: Install OpenCV from source (for compatibility)
+      - name: Install NVIDIA VPI (Vision Programming Interface)
         run: |
-          # Create a simple OpenCV installation since your project uses it
-          sudo apt-get install -y libopencv-dev libopencv-contrib-dev || \
-          (
-            echo "Installing OpenCV from apt failed, trying to create minimal headers..."
-            sudo mkdir -p /usr/local/include/opencv4/opencv2
-            sudo touch /usr/local/include/opencv4/opencv2/opencv.hpp
-            sudo mkdir -p /usr/local/lib
+          echo "Installing NVIDIA VPI for x86_64..."
+          
+          # Install required packages
+          sudo apt-get install -y gnupg software-properties-common
+          
+          # Add NVIDIA VPI repository key
+          sudo apt-key adv --fetch-key https://repo.download.nvidia.com/jetson/jetson-ota-public.asc
+          
+          # Add the VPI repository for Ubuntu 22.04 (jammy)
+          sudo add-apt-repository 'deb https://repo.download.nvidia.com/jetson/x86_64/jammy r36.4 main'
+          
+          # Update package list
+          sudo apt-get update
+          
+          # Install VPI packages
+          sudo apt-get install -y libnvvpi3 vpi3-dev vpi3-samples || (
+            echo "VPI installation failed, checking available packages..."
+            apt-cache search vpi3 || true
+            echo "Continuing without VPI - build may fail"
           )
+          
+          echo "VPI installation completed. Checking installation:"
+          ls -la /opt/nvidia/vpi3/ 2>/dev/null || echo "VPI not found in /opt/nvidia/vpi3"
+          ls -la /usr/include/vpi3/ 2>/dev/null || echo "VPI headers not found in /usr/include/vpi3"
 
       - name: Locate .pro file (auto) and configure
         shell: bash
