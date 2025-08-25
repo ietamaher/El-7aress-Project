@@ -5,6 +5,7 @@
 #include <QMutex>
 #include <QPointer> // Use QPointer for robustness if models/devices can be deleted
 #include "../models/systemstatemodel.h"
+#include "../models/systemstatedata.h"
 // Forward Declarations
 class DayCameraControlDevice;
 class NightCameraControlDevice;
