@@ -1,0 +1,116 @@
+name: Build and Test (qmake, Qt6)
+
+on:
+  pull_request:
+    branches: [ develop, main ]
+  push:
+    branches: [ develop, main ]
+    tags: ['v*']
+
+env:
+  # If your project .pro filename is different, set PRO_FILE here (relative to repo root).
+  # If left as "AUTO", the workflow will pick the first *.pro it finds at repo root.
+  PRO_FILE: AUTO
+  QT_VERSION: "6.6.0"    # change if you use another 6.x (match your .pro expectations)
+
+jobs:
+  build-linux-qt6:
+    name: Build & Test (Linux x86_64, Qt6)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install basic apt build deps
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y build-essential pkg-config cmake git wget unzip \
+            libglib2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            libgstreamer-plugins-good1.0-dev libopencv-dev libsdl2-dev \
+            libx11-dev libxext-dev
+
+      - name: Install Qt (Qt6)
+        uses: jurplel/install-qt-action@v2
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: linux
+
+      - name: Add Qt bin to PATH and show qmake
+        shell: bash
+        run: |
+          # install-qt-action puts Qt under $HOME/Qt/<version>/gcc_64 (for linux)
+          QT_DIR_CAND="$HOME/Qt/${{ env.QT_VERSION }}/gcc_64/bin"
+          if [ -d "$QT_DIR_CAND" ]; then
+            echo "Found Qt bin dir: $QT_DIR_CAND"
+            export PATH="$QT_DIR_CAND:$PATH"
+            echo "::add-path::$QT_DIR_CAND" || true
+          else
+            echo "Warning: expected Qt bin dir $QT_DIR_CAND not found — searching..."
+            # try to find qmake provided by the action
+            QMAKE_PATH=$(find $HOME -maxdepth 3 -type f -name qmake 2>/dev/null | head -n1 || true)
+            if [ -n "$QMAKE_PATH" ]; then
+              QT_DIR=$(dirname "$QMAKE_PATH")
+              echo "Found qmake at $QMAKE_PATH; adding $QT_DIR to PATH"
+              export PATH="$QT_DIR:$PATH"
+              echo "::add-path::$QT_DIR" || true
+            else
+              echo "ERROR: qmake not found. The install-qt-action may have changed layout."
+              ls -la $HOME || true
+              exit 1
+            fi
+          fi
+
+          echo "qmake -v ->"
+          qmake -v || true
+          which qmake || true
+
+      - name: Locate .pro file (auto) and configure
+        shell: bash
+        run: |
+          cd $GITHUB_WORKSPACE
+          # allow override via PRO_FILE env; if 'AUTO', pick first .pro at repo root
+          if [ "${PRO_FILE}" = "AUTO" ]; then
+            PRO_FILE_CAND=$(ls *.pro 2>/dev/null | head -n1 || true)
+            if [ -z "$PRO_FILE_CAND" ]; then
+              echo "No .pro file found at repo root. Please set PRO_FILE environment in the workflow."
+              ls -la
+              exit 1
+            fi
+            PRO_FILE="$PRO_FILE_CAND"
+          else
+            PRO_FILE="${PRO_FILE}"
+          fi
+          echo "Using PRO file: $PRO_FILE"
+
+          mkdir -p build
+          cd build
+          # qmake expects path to .pro relative to current dir
+          qmake "../${PRO_FILE}" || ( echo "qmake failed" && exit 1 )
+
+      - name: Build
+        shell: bash
+        run: |
+          cd build
+          make -j$(nproc) || ( echo "Build failed" && exit 1 )
+
+      - name: Run unit/integration tests (if present)
+        shell: bash
+        run: |
+          cd build
+          # test binary expected at build/tests/tests (default from tests/tests.pro)
+          if [ -x "./tests/tests" ]; then
+            echo "Running tests..."
+            ./tests/tests || ( echo "Tests failed" && exit 1 )
+          else
+            echo "No tests/tests binary found — skipping test run."
+          fi
+
+      - name: Upload artifacts (on tag push only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v4
+        with:
+          name: myapp-binaries
+          path: |
+            build/src/*
+            build/tests/*
