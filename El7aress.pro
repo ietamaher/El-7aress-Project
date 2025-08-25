@@ -20,15 +20,15 @@ unix {
         # PC-specific configurations
         INCLUDEPATH += "/usr/local/cuda-12.2/targets/x86_64-linux/include"
         INCLUDEPATH += "/opt/nvidia/deepstream/deepstream-6.4/sources/includes"
-        LIBS += -L/usr/local/cuda-12.2/lib64 -lcudart
-        LIBS += -L/opt/nvidia/deepstream/deepstream-6.4/lib -lnvdsgst_meta -lnvds_meta
+        #LIBS += -L/usr/local/cuda-12.2/lib64 -lcudart
+        #LIBS += -L/opt/nvidia/deepstream/deepstream-6.4/lib -lnvdsgst_meta -lnvds_meta
         LIBS += -L/usr/lib/x86_64-linux-gnu/gstreamer-1.0 -lgstxvimagesink
     } else:contains(QMAKE_HOST.arch, "aarch64") {
         # Jetson-specific configurations
         INCLUDEPATH +="/usr/local/cuda-12.6/targets/aarch64-linux/include"
         INCLUDEPATH +="/opt/nvidia/deepstream/deepstream/sources/includes"
-        LIBS += -L/usr/local/cuda-12.6/lib64 -lcudart
-        LIBS += -L/opt/nvidia/deepstream/deepstream/lib #-lnvdsgst_meta -lnvds_meta
+        #LIBS += -L/usr/local/cuda-12.6/lib64 -lcudart
+        #LIBS += -L/opt/nvidia/deepstream/deepstream/lib #-lnvdsgst_meta -lnvds_meta
         LIBS += -L/usr/lib/aarch64-linux-gnu/tegra -lnvbufsurface -lnvbufsurftransform
         LIBS+=-L"/usr/lib/aarch64-linux-gnu/gstreamer-1.0" -lgstxvimagesink -L"/usr/lib/aarch64-linux-gnu" -lgstbase-1.0 -lgstreamer-1.0 -lglib-2.0 -lgobject-2.0
 
@@ -36,8 +36,8 @@ unix {
 }
 
 # Common configurations
-#INCLUDEPATH += "/usr/include/opencv4"
-INCLUDEPATH += "/usr/local/include/opencv4"
+INCLUDEPATH += "/usr/include/opencv4"
+#INCLUDEPATH += "/usr/local/include/opencv4"
 INCLUDEPATH += "/usr/include/eigen3"
 INCLUDEPATH += "/usr/include/glib-2.0"
 INCLUDEPATH += "/usr/include/gstreamer-1.0"
