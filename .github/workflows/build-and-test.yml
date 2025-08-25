@@ -147,6 +147,11 @@ jobs:
           ls -la /opt/nvidia/vpi3/ 2>/dev/null || echo "VPI not found in /opt/nvidia/vpi3"
           ls -la /usr/include/vpi3/ 2>/dev/null || echo "VPI headers not found in /usr/include/vpi3"
 
+      - name: Install OpenCV
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y libopencv-dev
+
       - name: Locate .pro file (auto) and configure
         shell: bash
         run: |
