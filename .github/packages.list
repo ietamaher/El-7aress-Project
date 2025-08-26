@@ -1,12 +1,9 @@
-# Core build tools
 build-essential
 pkg-config
 cmake
 git
 wget
 unzip
-
-# GStreamer and Glib
 libglib2.0-dev
 libgstreamer1.0-dev
 libgstreamer-plugins-base1.0-dev
@@ -15,19 +12,13 @@ gstreamer1.0-plugins-base
 gstreamer1.0-plugins-good
 gstreamer1.0-plugins-bad
 gstreamer1.0-libav
-
-# Graphics and UI libs
 libsdl2-dev
 libx11-dev
 libxext-dev
 libegl1-mesa-dev
 libgl1-mesa-dev
-
-# Math and Vision libs
 libeigen3-dev
 libopencv-dev
-
-# Qt6 libs from apt (as a fallback or for specific modules)
 qt6-base-dev
 qt6-base-dev-tools
 libqt6serialbus6-dev
@@ -35,8 +26,6 @@ libqt6serialport6-dev
 libqt6multimedia6-dev
 libqt6multimediawidgets6-dev
 libqt6dbus6-dev
-
-# NVIDIA VPI libs
 libnvvpi3
 vpi3-dev
 vpi3-samples
