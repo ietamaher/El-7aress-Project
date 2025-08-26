@@ -104,7 +104,7 @@ jobs:
           cd build
           if [ -x "./tests/tests" ]; then
             echo "Running tests..."
-            ./tests/tests
+             xvfb-run ./tests/tests
           else
             echo "No tests/tests binary found — skipping test run."
           fi
