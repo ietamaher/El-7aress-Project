@@ -5,6 +5,7 @@ cmake
 git
 wget
 unzip
+xvfb
 
 # GStreamer and Glib
 libglib2.0-dev
