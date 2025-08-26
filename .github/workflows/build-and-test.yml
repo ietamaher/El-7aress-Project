@@ -20,9 +20,6 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # --- OPTIMIZATION 1: Cache APT packages ---
-      # This step will store the downloaded .deb files. On subsequent runs,
-      # it will restore them, making the 'apt-get install' step nearly instant.
       - name: Cache APT packages
         id: cache-apt-packages
         uses: actions/cache@v4
@@ -32,8 +29,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-apt-
 
-      # --- OPTIMIZATION 2: Consolidate ALL dependency installations ---
-      # All apt-get update, add-repo, and install commands are now in one place.
       - name: Install System Dependencies (APT)
         run: |
           # Add NVIDIA VPI repository first
@@ -41,25 +36,25 @@ jobs:
           sudo apt-key adv --fetch-key https://repo.download.nvidia.com/jetson/jetson-ota-public.asc
           sudo add-apt-repository 'deb https://repo.download.nvidia.com/jetson/x86_64/jammy r36.4 main'
           
-          # Only run apt-get update if the cache was empty.
           if [[ ! "${{ steps.cache-apt-packages.outputs.cache-hit }}" == "true" ]]; then
             sudo apt-get update -y
           fi
           
-          # --- THIS IS THE CORRECTED COMMAND ---
-          # Filter comments/blank lines, then install with the full flag.
+          # Install from our CLEANED package list
           grep -vE '^\s*#|^\s*$' .github/packages.list | sudo xargs apt-get install -y --no-install-recommends
-          
+
+      # --- THIS IS THE KEY FIX ---
+      # We now list ALL required Qt modules here. The action will download and install them.
       - name: Install Qt (Qt6) with additional modules
-        id: install-qt # Give this step an ID to reference its output
+        id: install-qt
         uses: jurplel/install-qt-action@v3
         with:
           version: ${{ env.QT_VERSION }}
           host: linux
           target: desktop
           arch: gcc_64
-          modules: 'qtserialbus qtserialport qtmultimedia'
-          cache: true # This caches the Qt installer itself, which is also a big time saver.
+          modules: 'qtserialbus qtserialport qtmultimedia qtdbus' # Added qtdbus
+          cache: true
 
       # --- OPTIMIZATION 3: Simplify qmake path finding ---
       # We use the direct output of the install-qt-action instead of a complex script.
