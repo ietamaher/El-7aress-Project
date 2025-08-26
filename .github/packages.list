@@ -1,3 +1,4 @@
+
 # Core build tools
 build-essential
 pkg-config
@@ -12,14 +13,23 @@ libglib2.0-dev
 libgstreamer1.0-dev
 libgstreamer-plugins-base1.0-dev
 libgstreamer-plugins-good1.0-dev
-libgstreamer-plugins-bad1.0-dev   
+libgstreamer-plugins-bad1.0-dev
 gstreamer1.0-plugins-base
 gstreamer1.0-plugins-good
 gstreamer1.0-plugins-bad
 gstreamer1.0-libav
 gstreamer1.0-x
 
-# Graphics and UI libs
+# --- THIS IS THE FINAL FIX ---
+# Add the system libraries required by the Qt XCB platform plugin
+libxcb-randr0-dev
+libxcb-xtest0-dev
+libxcb-xinerama0-dev
+libxcb-shape0-dev
+libxcb-xkb-dev
+libxkbcommon-x11-dev
+
+# Graphics and UI libs (some are redundant with above, but safe to keep)
 libsdl2-dev
 libx11-dev
 libxext-dev
