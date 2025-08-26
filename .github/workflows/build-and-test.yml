@@ -46,15 +46,24 @@ jobs:
       # --- THIS IS THE KEY FIX ---
       # We now list ALL required Qt modules here. The action will download and install them.
       - name: Install Qt (Qt6) with additional modules
-        id: install-qt
         uses: jurplel/install-qt-action@v3
         with:
           version: ${{ env.QT_VERSION }}
           host: linux
           target: desktop
           arch: gcc_64
-          modules: 'qtserialbus qtserialport qtmultimedia qtdbus' # Added qtdbus
+          modules: 'qtserialbus qtserialport qtmultimedia'
           cache: true
+
+      - name: Install additional Qt6 packages from apt (fallback)
+        run: |
+          # Install additional Qt6 packages that might not be in the action
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            qt6-base-dev qt6-base-dev-tools \
+            libqt6serialbus6-dev libqt6serialport6-dev \
+            libqt6multimedia6-dev libqt6multimediawidgets6-dev \
+            libqt6dbus6-dev || echo "Some Qt6 packages not available, continuing..."
 
       # --- OPTIMIZATION 3: Simplify qmake path finding ---
       # We use the direct output of the install-qt-action instead of a complex script.
