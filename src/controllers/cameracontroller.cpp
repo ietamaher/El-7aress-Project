@@ -248,8 +248,8 @@ void CameraController::stopTracking()
 /*
  *
  * /home/rapit/Desktop/tous_dossiers/docs/el7aress/controllers/cameracontroller.cpp:198: error: invalid operands of types ‘const char [29]’ and ‘const char*’ to binary ‘operator+’
-../../../Desktop/tous_dossiers/docs/el7aress/controllers/cameracontroller.cpp: In member function ‘bool CameraController::startTracking()’:
-../../../Desktop/tous_dossiers/docs/el7aress/controllers/cameracontroller.cpp:198:49: error: invalid operands of types ‘const char [29]’ and ‘const char*’ to binary ‘operator+’
+../../Desktop/tous_dossiers/docs/el7aress/controllers/cameracontroller.cpp: In member function ‘bool CameraController::startTracking()’:
+../../Desktop/tous_dossiers/docs/el7aress/controllers/cameracontroller.cpp:198:49: error: invalid operands of types ‘const char [29]’ and ‘const char*’ to binary ‘operator+’
   198 |     updateStatus("Tracking start requested on " + (m_isDayCameraActive ? "Day" : "Night") + " camera.");
       |                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ^ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
       |                  |                                                     |

@@ -31,9 +31,9 @@ public:
     bool initialize(); // Simplified initialization
 
     // --- Camera Control Methods (Remain Largely the Same) ---
-    Q_INVOKABLE void zoomIn();
-    Q_INVOKABLE void zoomOut();
-    Q_INVOKABLE void zoomStop();
+    Q_INVOKABLE virtual void zoomIn();
+    Q_INVOKABLE virtual void zoomOut();
+    Q_INVOKABLE virtual void zoomStop();
     Q_INVOKABLE void focusNear();
     Q_INVOKABLE void focusFar();
     Q_INVOKABLE void focusStop();
@@ -60,7 +60,7 @@ signals:
     // Signal to update external status displays
     void statusUpdated(const QString& message);
 
-private slots:
+public slots:
     // React to changes in the central state model
     void onSystemStateChanged(const SystemStateData &newData);
 
@@ -84,10 +84,10 @@ private:
     /*
      * /home/rapit/Desktop/tous_dossiers/docs/el7aress/controllers/cameracontroller.h:81: error: field ‘m_cachedState’ has incomplete type ‘SystemStateData’
 In file included from moc_cameracontroller.cpp:9:
-../../../Desktop/tous_dossiers/docs/el7aress/controllers/cameracontroller.h:81:21: error: field ‘m_cachedState’ has incomplete type ‘SystemStateData’
+../../Desktop/tous_dossiers/docs/el7aress/controllers/cameracontroller.h:81:21: error: field ‘m_cachedState’ has incomplete type ‘SystemStateData’
    81 |     SystemStateData m_cachedState;   // Cache the last known state from the model
       |                     ^~~~~~~~~~~~~
-../../../Desktop/tous_dossiers/docs/el7aress/controllers/cameracontroller.h:14:7: note: forward declaration of ‘class SystemStateData’
+../../Desktop/tous_dossiers/docs/el7aress/controllers/cameracontroller.h:14:7: note: forward declaration of ‘class SystemStateData’
    14 | class SystemStateData; // Assuming SystemStateModel emits this
       |       ^~~~~~~~~~~~~~~
       */
