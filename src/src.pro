@@ -36,8 +36,8 @@ unix {
 }
 
 # Common configurations
-#INCLUDEPATH += "/usr/include/opencv4"
-INCLUDEPATH += "/usr/local/include/opencv4"
+INCLUDEPATH += "/usr/include/opencv4"
+#INCLUDEPATH += "/usr/local/include/opencv4"
 INCLUDEPATH += "/usr/include/eigen3"
 INCLUDEPATH += "/usr/include/glib-2.0"
 INCLUDEPATH += "/usr/include/gstreamer-1.0"
