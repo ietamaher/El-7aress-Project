@@ -46,11 +46,9 @@ jobs:
             sudo apt-get update -y
           fi
           
-          # Install all packages from our central list file.
-          # The --no-install-recommends flag makes it faster and smaller.
-          # The || true part prevents the workflow from failing if a single Qt package is not found.
-          #sudo xargs -a .github/packages.list apt-get install -y --no-install-recommends || true
-          grep -vE '^\s*#|^\s*$' .github/packages.list | sudo xargs apt-get install -y --no-install-
+          # --- THIS IS THE CORRECTED COMMAND ---
+          # Filter comments/blank lines, then install with the full flag.
+          grep -vE '^\s*#|^\s*$' .github/packages.list | sudo xargs apt-get install -y --no-install-recommends
           
       - name: Install Qt (Qt6) with additional modules
         id: install-qt # Give this step an ID to reference its output
