@@ -86,7 +86,7 @@ public:
      * @brief Gets the current system state data.
      * @return The current SystemStateData structure.
      */
-    SystemStateData data() const { return m_currentStateData; }
+    virtual SystemStateData data() const { return m_currentStateData; }
     
     /**
      * @brief Updates the entire system state with new data.
@@ -111,7 +111,7 @@ public:
      * @brief Sets the dead man switch state for safety control.
      * @param pressed True if the dead man switch is pressed, false otherwise.
      */
-    void setDeadManSwitch(bool pressed);
+    virtual void setDeadManSwitch(bool pressed);
     
     /**
      * @brief Sets the active camera type (day or night vision).
@@ -188,7 +188,7 @@ public:
      * @brief Sets whether lead angle compensation is active for moving targets.
      * @param active True to activate lead angle compensation, false to deactivate.
      */
-    void setLeadAngleCompensationActive(bool active);
+    virtual void setLeadAngleCompensationActive(bool active);
     
     /**
      * @brief Updates the calculated lead angle offsets for target compensation.
@@ -273,12 +273,12 @@ public:
     /**
      * @brief Selects the next automatic sector scan zone in sequence.
      */
-    void selectNextAutoSectorScanZone();
+    virtual void selectNextAutoSectorScanZone();
     
     /**
      * @brief Selects the previous automatic sector scan zone in sequence.
      */
-    void selectPreviousAutoSectorScanZone();
+    virtual void selectPreviousAutoSectorScanZone();
 
     // --- Target Reference Point (TRP) Management ---
     /**
@@ -319,12 +319,12 @@ public:
     /**
      * @brief Selects the next target reference point location page for display.
      */
-    void selectNextTRPLocationPage();
+    virtual void selectNextTRPLocationPage();
     
     /**
      * @brief Selects the previous target reference point location page for display.
      */
-    void selectPreviousTRPLocationPage();
+    virtual void selectPreviousTRPLocationPage();
 
     // --- Configuration File Management ---
     /**
@@ -396,9 +396,9 @@ public:
                               VPITrackingState state);
  
 
-    void startTrackingAcquisition();
-    void requestTrackerLockOn();
-    void stopTracking();
+    virtual void startTrackingAcquisition();
+    virtual void requestTrackerLockOn();
+    virtual void stopTracking();
     void updateTrackingResult(bool hasLock, ...); // From VideoProcessor
     void adjustAcquisitionBoxSize(float dW, float dH);
     
@@ -406,7 +406,7 @@ public:
     // These are called by JoystickController/MainWindow based on user input
     void enterSurveillanceMode(); // Called when station is enabled
     void enterIdleMode();         // Called when station is disabled
-    void commandEngagement(bool start); // True to start, false to stop
+    virtual void commandEngagement(bool start); // True to start, false to stop
     //void enterEmergencyStopMode();
     // No need for enterTrackingMode(), as this is now handled by the TrackingPhase machine inside updateTrackingResult
 
@@ -553,13 +553,12 @@ public slots:
      * @brief Sets the motion control mode of the system.
      * @param newMode The new motion mode to apply.
      */
-    void setMotionMode(MotionMode newMode);
-    
-    /**
-     * @brief Sets the operational mode of the system.
-     * @param newOpMode The new operational mode to apply.
-     */
-    void setOpMode(OperationalMode newOpMode);
+    virtual void setMotionMode(MotionMode newMode);
+    virtual void setOpMode(OperationalMode newOpMode);
+    // ...
+    // You also call these from JoystickController, so make them virtual:
+
+
     
     /**
      * @brief Sets whether tracking restart is requested.

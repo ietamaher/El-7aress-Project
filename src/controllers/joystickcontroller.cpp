@@ -99,10 +99,10 @@ void JoystickController::onButtonChanged(int button, bool pressed)
 
     if (button == 4 && pressed) {
         // to uncomment it in the future
-        /*if (!m_stateModel->data().deadManSwitchActive) { 
+        if (!m_stateModel->data().deadManSwitchActive) {
             qDebug() << "Joystick: TRACK button ignored, Deadman Switch not active.";
             return;
-        }*/
+        }
         qint64 now = QDateTime::currentMSecsSinceEpoch();
         bool isDoubleClick = (now - m_lastTrackButtonPressTime) < DOUBLE_CLICK_INTERVAL_MS;
         qDebug() << "Joystick: TRACK button pressed. Double-click detected:" << now - m_lastTrackButtonPressTime << "ms";
@@ -196,6 +196,10 @@ void JoystickController::onButtonChanged(int button, bool pressed)
 
         // Fire Weapon
     case 5:
+        if (!curr.stationEnabled) {
+            qDebug() << "Cannot fire, station is off.";
+            return; // Exit without firing
+        }
         if (pressed) {
             m_weaponController->startFiring();
         } else {

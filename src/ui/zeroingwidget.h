@@ -6,7 +6,7 @@
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QFont>
-#include <src/models/systemstatemodel.h> // For SystemStateData
+#include "models/systemstatemodel.h" // For SystemStateData
 #include "basestyledwidget.h"
 
 // Forward declare

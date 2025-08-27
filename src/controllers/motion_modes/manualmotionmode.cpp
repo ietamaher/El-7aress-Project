@@ -1,6 +1,6 @@
 #include "manualmotionmode.h"
 #include "../gimbalcontroller.h"
-#include "../../models/systemstatemodel.h"
+#include "models/systemstatemodel.h"
 #include <QDebug>
 
 ManualMotionMode::ManualMotionMode(QObject* parent)
