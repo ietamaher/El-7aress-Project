@@ -131,13 +131,65 @@ public:
 };
 
 
+// A struct to hold all the mocks and the controller under test
+struct TestFixture
+{
+    MockJoystickDataModel* mockJoystickModel;
+    MockSystemStateModel* mockStateModel;
+    MockWeaponController* mockWeaponController;
+    MockCameraController* mockCameraController;
+    GimbalController* mockGimbalController; // Remains null as in original
+    JoystickController* controller;
+    QObject* parent; // Parent for memory management
+
+    TestFixture(QObject* parent = nullptr) : parent(parent)
+    {
+        mockJoystickModel = new MockJoystickDataModel(parent);
+        mockStateModel = new MockSystemStateModel(parent);
+        mockWeaponController = new MockWeaponController(mockStateModel);
+        mockCameraController = new MockCameraController();
+        mockGimbalController = nullptr; // Explicitly null
+
+        controller = new JoystickController(
+            mockJoystickModel,
+            mockStateModel,
+            mockGimbalController,
+            mockCameraController,
+            mockWeaponController,
+            parent
+        );
+    }
+
+    ~TestFixture()
+    {
+        // Qt's parent-child memory management handles deletion
+        // No need to delete controller, it will be deleted when parent is.
+        delete mockCameraController; // This one has no parent
+        // The rest are children of 'parent' and will be auto-deleted.
+    }
+
+    void setStationEnabled(bool enabled)
+    {
+        mockStateModel->m_testData.stationEnabled = enabled;
+    }
+};
+
+
 class TestJoystickController : public QObject
 {
     Q_OBJECT
 
 public:
-    TestJoystickController();
-    ~TestJoystickController();
+    TestJoystickController() {}
+    ~TestJoystickController() {}
+
+private:
+    // Define constants for button mappings to avoid magic numbers
+    const int FIRE_BUTTON = 5;
+    const int TRACK_BUTTON = 4;
+    const int MODE_CYCLE_BUTTON = 11;
+
+    TestFixture* m_fixture;
 
 private slots:
     void init();
@@ -145,54 +197,27 @@ private slots:
 
     // Test cases
     void testInitialization();
+    void testFireButtonAction_data();
     void testFireButtonAction();
-    void testFireButtonAction_data(); // <<< FIXED: Added declaration
     void testActionWhenStationDisabled();
     void testTrackingButtonLifecycle();
+    void testMotionModeCycling_data();
     void testMotionModeCycling();
-
-private:
-    JoystickController* m_controller;
-    MockJoystickDataModel* m_mockJoystickModel;
-    MockSystemStateModel* m_mockStateModel;
-    MockWeaponController* m_mockWeaponController;
-    MockCameraController* m_mockCameraController;
-    GimbalController* m_mockGimbalController;
 };
-
-TestJoystickController::TestJoystickController() {}
-TestJoystickController::~TestJoystickController() {}
 
 void TestJoystickController::init()
 {
-    m_mockJoystickModel = new MockJoystickDataModel(this);
-    m_mockStateModel = new MockSystemStateModel(this);
-    m_mockWeaponController = new MockWeaponController(m_mockStateModel);
-    m_mockCameraController = new MockCameraController();
-    m_mockGimbalController = nullptr;
-
-    m_controller = new JoystickController(
-        m_mockJoystickModel,
-        m_mockStateModel,
-        m_mockGimbalController,
-        m_mockCameraController,
-        m_mockWeaponController,
-        this
-    );
+    m_fixture = new TestFixture(this);
 }
 
 void TestJoystickController::cleanup()
 {
-    delete m_controller;
-    delete m_mockCameraController;
-    delete m_mockWeaponController;
-    delete m_mockStateModel;
-    delete m_mockJoystickModel;
+    delete m_fixture;
 }
 
 void TestJoystickController::testInitialization()
 {
-    QVERIFY(m_controller != nullptr);
+    QVERIFY(m_fixture->controller != nullptr);
 }
 
 void TestJoystickController::testFireButtonAction_data()
@@ -202,8 +227,8 @@ void TestJoystickController::testFireButtonAction_data()
     QTest::addColumn<bool>("shouldStartFiring");
     QTest::addColumn<bool>("shouldStopFiring");
 
-    QTest::newRow("Press Fire")   << 5 << true  << true  << false;
-    QTest::newRow("Release Fire") << 5 << false << false << true;
+    QTest::newRow("Press Fire")   << FIRE_BUTTON << true  << true  << false;
+    QTest::newRow("Release Fire") << FIRE_BUTTON << false << false << true;
 }
 
 void TestJoystickController::testFireButtonAction()
@@ -213,126 +238,103 @@ void TestJoystickController::testFireButtonAction()
     QFETCH(bool, shouldStartFiring);
     QFETCH(bool, shouldStopFiring);
 
-    // --- FIX: SET THE PRE-CONDITIONS FOR THE TEST ---
-    m_mockStateModel->m_testData.stationEnabled = true;
-
-    // Based on the debug output, the real WeaponController checks m_systemArmed.
-    // Let's create a mock version of that check.
-    // In the real code, this is likely set in WeaponController::armWeapon.
-    // For the test, we can simulate it. Let's assume there's a member
-    // 'm_systemArmed' in WeaponController that we can't access.
-    // The joystick controller calls commandEngagement. Let's look at its code.
-    // The logic is inside the REAL WeaponController, so we must make it pass.
-    // For now, let's assume `armWeapon` must be called.
-    // Let's modify the real WeaponController to allow mocking `m_systemArmed`
-    // OR, we fix the test setup.
-
-    // The easiest fix is to tell the test that the system is armed.
-    // Let's look at WeaponController.cpp: the condition is probably on `m_systemArmed`.
-    // Since we can't change that from the test, we should mock `armWeapon` and
-    // ensure it's called.
-
-    // Let's assume your WeaponController::startFiring() checks `m_systemArmed`.
-    // Since we are now correctly calling the MOCK `startFiring`, that check is bypassed.
-    // So no change is needed here once the virtual/override fix is in place.
+    // Arrange
+    m_fixture->setStationEnabled(true);
 
     // Act
-    m_mockJoystickModel->sendButtonPress(button, pressed);
+    m_fixture->mockJoystickModel->sendButtonPress(button, pressed);
 
     // Assert
-    QCOMPARE(m_mockWeaponController->startFiringCalled, shouldStartFiring);
-    QCOMPARE(m_mockWeaponController->stopFiringCalled, shouldStopFiring);
+    QCOMPARE(m_fixture->mockWeaponController->startFiringCalled, shouldStartFiring);
+    QCOMPARE(m_fixture->mockWeaponController->stopFiringCalled, shouldStopFiring);
 }
 
 void TestJoystickController::testActionWhenStationDisabled()
 {
-    // Arrange: Set station to disabled in the model
-    m_mockStateModel->resetFlags(); // Ensure a clean state
-    m_mockStateModel->m_testData.stationEnabled = false;
+    // Arrange: Set station to disabled
+    m_fixture->setStationEnabled(false);
+    m_fixture->mockStateModel->resetFlags();
 
     // Act: Simulate pressing the fire button
-    m_mockJoystickModel->sendButtonPress(5, true);
+    m_fixture->mockJoystickModel->sendButtonPress(FIRE_BUTTON, true);
 
     // Assert: Verify that no action was taken on the weapon controller
-    QVERIFY(!m_mockWeaponController->startFiringCalled);
-
-    // Arrange for the next part of the test
-    m_mockStateModel->m_testData.stationEnabled = false;
+    QVERIFY(!m_fixture->mockWeaponController->startFiringCalled);
 
     // Act: Simulate trying to cycle modes
-    m_mockJoystickModel->sendButtonPress(11, true);
+    m_fixture->mockJoystickModel->sendButtonPress(MODE_CYCLE_BUTTON, true);
 
     // Assert: Verify that motion mode was not changed
-    QVERIFY(!m_mockStateModel->setMotionModeCalled);
+    QVERIFY(!m_fixture->mockStateModel->setMotionModeCalled);
 }
 
 void TestJoystickController::testTrackingButtonLifecycle()
 {
     // --- STEP 1: Test transitioning from Off to Acquisition ---
-    m_mockStateModel->reset();
-    m_mockStateModel->m_testData.stationEnabled = true;
-    m_mockStateModel->m_testData.deadManSwitchActive = true;
-    m_mockStateModel->m_testData.currentTrackingPhase = TrackingPhase::Off;
+    m_fixture->mockStateModel->reset();
+    m_fixture->setStationEnabled(true);
+    m_fixture->mockStateModel->m_testData.deadManSwitchActive = true;
+    m_fixture->mockStateModel->m_testData.currentTrackingPhase = TrackingPhase::Off;
 
-    m_mockJoystickModel->sendButtonPress(4, true);
+    m_fixture->mockJoystickModel->sendButtonPress(TRACK_BUTTON, true);
 
-    QVERIFY(m_mockStateModel->startTrackingAcquisitionCalled);
-    QCOMPARE(m_mockStateModel->data().currentTrackingPhase, TrackingPhase::Acquisition);
+    QVERIFY(m_fixture->mockStateModel->startTrackingAcquisitionCalled);
+    QCOMPARE(m_fixture->mockStateModel->data().currentTrackingPhase, TrackingPhase::Acquisition);
 
-    // --- THIS IS THE FIX ---
-    // Simulate a delay longer than the double-click interval to test the next single press
-    QTest::qWait(1100); // Wait for 1.1 seconds (DOUBLE_CLICK_INTERVAL_MS is 1000)
+    // Simulate a delay longer than the double-click interval for the next single press
+    QTest::qWait(1100);
 
     // --- STEP 2: Test transitioning from Acquisition to LockPending ---
-    m_mockStateModel->resetFlags();
-    m_mockStateModel->m_testData.stationEnabled = true;
-    m_mockStateModel->m_testData.deadManSwitchActive = true;
-    m_mockStateModel->m_testData.currentTrackingPhase = TrackingPhase::Acquisition;
+    m_fixture->mockStateModel->resetFlags();
+    m_fixture->setStationEnabled(true);
+    m_fixture->mockStateModel->m_testData.deadManSwitchActive = true;
+    m_fixture->mockStateModel->m_testData.currentTrackingPhase = TrackingPhase::Acquisition;
 
-    m_mockJoystickModel->sendButtonPress(4, true);
+    m_fixture->mockJoystickModel->sendButtonPress(TRACK_BUTTON, true);
 
-    QVERIFY(m_mockStateModel->requestTrackerLockOnCalled);
-    QCOMPARE(m_mockStateModel->data().currentTrackingPhase, TrackingPhase::Tracking_LockPending);
+    QVERIFY(m_fixture->mockStateModel->requestTrackerLockOnCalled);
+    QCOMPARE(m_fixture->mockStateModel->data().currentTrackingPhase, TrackingPhase::Tracking_LockPending);
 
-    // --- STEP 3: Test aborting tracking with an actual double-click ---
-    m_mockStateModel->resetFlags();
-    m_mockStateModel->m_testData.stationEnabled = true;
-    m_mockStateModel->m_testData.deadManSwitchActive = true;
-    m_mockStateModel->m_testData.currentTrackingPhase = TrackingPhase::Tracking_ActiveLock;
+    // --- STEP 3: Test aborting tracking with a double-click ---
+    m_fixture->mockStateModel->resetFlags();
+    m_fixture->setStationEnabled(true);
+    m_fixture->mockStateModel->m_testData.deadManSwitchActive = true;
+    m_fixture->mockStateModel->m_testData.currentTrackingPhase = TrackingPhase::Tracking_ActiveLock;
 
-    m_mockJoystickModel->sendButtonPress(4, true); // No wait here
-    m_mockJoystickModel->sendButtonPress(4, true);
+    m_fixture->mockJoystickModel->sendButtonPress(TRACK_BUTTON, true); // 1st click
+    m_fixture->mockJoystickModel->sendButtonPress(TRACK_BUTTON, true); // 2nd click
 
-    QVERIFY(m_mockStateModel->stopTrackingCalled);
-    QCOMPARE(m_mockStateModel->data().currentTrackingPhase, TrackingPhase::Off);
+    QVERIFY(m_fixture->mockStateModel->stopTrackingCalled);
+    QCOMPARE(m_fixture->mockStateModel->data().currentTrackingPhase, TrackingPhase::Off);
+}
+
+void TestJoystickController::testMotionModeCycling_data()
+{
+    QTest::addColumn<MotionMode>("fromMode");
+    QTest::addColumn<MotionMode>("toMode");
+
+    QTest::newRow("Manual -> AutoSectorScan") << MotionMode::Manual << MotionMode::AutoSectorScan;
+    QTest::newRow("AutoSectorScan -> TRPScan") << MotionMode::AutoSectorScan << MotionMode::TRPScan;
+    QTest::newRow("TRPScan -> RadarSlew") << MotionMode::TRPScan << MotionMode::RadarSlew;
+    QTest::newRow("RadarSlew -> Manual") << MotionMode::RadarSlew << MotionMode::Manual;
 }
 
 void TestJoystickController::testMotionModeCycling()
 {
-    m_mockStateModel->m_testData.stationEnabled = true;
-    m_mockStateModel->m_testData.motionMode = MotionMode::Manual;
+    QFETCH(MotionMode, fromMode);
+    QFETCH(MotionMode, toMode);
 
-    m_mockJoystickModel->sendButtonPress(11, true);
-    QVERIFY(m_mockStateModel->setMotionModeCalled);
-    QCOMPARE(m_mockStateModel->lastSetMotionMode, MotionMode::AutoSectorScan);
-    m_mockStateModel->resetFlags();
-    m_mockStateModel->m_testData.motionMode = MotionMode::AutoSectorScan;
+    // Arrange
+    m_fixture->setStationEnabled(true);
+    m_fixture->mockStateModel->m_testData.motionMode = fromMode;
+    m_fixture->mockStateModel->resetFlags();
 
-    m_mockJoystickModel->sendButtonPress(11, true);
-    QVERIFY(m_mockStateModel->setMotionModeCalled);
-    QCOMPARE(m_mockStateModel->lastSetMotionMode, MotionMode::TRPScan);
-    m_mockStateModel->resetFlags();
-    m_mockStateModel->m_testData.motionMode = MotionMode::TRPScan;
+    // Act
+    m_fixture->mockJoystickModel->sendButtonPress(MODE_CYCLE_BUTTON, true);
 
-    m_mockJoystickModel->sendButtonPress(11, true);
-    QVERIFY(m_mockStateModel->setMotionModeCalled);
-    QCOMPARE(m_mockStateModel->lastSetMotionMode, MotionMode::RadarSlew);
-    m_mockStateModel->resetFlags();
-    m_mockStateModel->m_testData.motionMode = MotionMode::RadarSlew;
-
-    m_mockJoystickModel->sendButtonPress(11, true);
-    QVERIFY(m_mockStateModel->setMotionModeCalled);
-    QCOMPARE(m_mockStateModel->lastSetMotionMode, MotionMode::Manual);
+    // Assert
+    QVERIFY(m_fixture->mockStateModel->setMotionModeCalled);
+    QCOMPARE(m_fixture->mockStateModel->lastSetMotionMode, toMode);
 }
 
 QTEST_MAIN(TestJoystickController)
