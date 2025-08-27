@@ -109,9 +109,11 @@ jobs:
         shell: bash
         run: |
           cd build
+          export QT_DEBUG_PLUGINS=1
+          export QT_QPA_PLATFORM=offscreen   
           if [ -x "./tests/tests" ]; then
             echo "Running tests..."
-             xvfb-run ./tests/tests
+            xvfb-run ./tests/tests
           else
             echo "No tests/tests binary found — skipping test run."
           fi
