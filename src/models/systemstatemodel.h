@@ -31,7 +31,7 @@
  * • Joystick Control Slots - User input handling
  * • System Mode Control Slots - Operational mode changes
  * 
- * @author [Your Name]
+ * @author ieta_maher
  * @date 19 Juin 2025
  * @version 1.0
  */
@@ -81,7 +81,9 @@ class SystemStateModel : public QObject
 public:
     explicit SystemStateModel(QObject *parent = nullptr);
 
-    // --- Core System Data Management ---
+    // =================================================================
+    // 1. CORE SYSTEM & MODE MANAGEMENT
+    // =================================================================
     /**
      * @brief Gets the current system state data.
      * @return The current SystemStateData structure.
@@ -94,7 +96,22 @@ public:
      */
     void updateData(const SystemStateData &newState);
 
-    // --- User Interface Controls ---
+    /**
+     * @brief Sets the motion control mode of the system.
+     * @param newMode The new motion mode to apply.
+     */
+    virtual void setMotionMode(MotionMode newMode);
+
+    /**
+     * @brief Sets the operational mode of the system.
+     * @param newOpMode The new operational mode to apply.
+     */
+    virtual void setOpMode(OperationalMode newOpMode);
+
+
+    // =================================================================
+    // 2. USER INTERFACE CONTROLS
+    // =================================================================
     /**
      * @brief Sets the color style for the user interface.
      * @param style The color to be used for UI styling.
@@ -107,6 +124,10 @@ public:
      */
     void setReticleStyle(const ReticleType &type);
     
+
+    // =================================================================
+    // 3. GIMBAL, WEAPON, AND TRACKING CONTROL
+    // =================================================================
     /**
      * @brief Sets the dead man switch state for safety control.
      * @param pressed True if the dead man switch is pressed, false otherwise.
@@ -119,7 +140,6 @@ public:
      */
     void setActiveCameraIsDay(bool pressed);
 
-    // --- Weapon Control and Tracking ---
     /**
      * @brief Sets the down track button state for weapon control.
      * @param pressed True if down track is pressed, false otherwise.
@@ -144,7 +164,79 @@ public:
      */
     void setUpSw(bool pressed);
 
-    // --- Fire Control and Safety Zones ---
+    /**
+     * @brief Sets whether tracking restart is requested.
+     * @param restart True if tracking restart is requested, false otherwise.
+     */
+    void setTrackingRestartRequested(bool restart);
+
+    /**
+     * @brief Sets whether tracking has started.
+     * @param start True if tracking has started, false otherwise.
+     */
+    void setTrackingStarted(bool start);
+
+    /**
+     * @brief Updates the tracked target information.
+     * @param cameraIndex The index of the camera that produced the tracking result.
+     * @param hasLock True if the tracker has a lock on the target.
+     * @param centerX_px The x-coordinate of the center of the tracked target in pixels.
+     * @param centerY_px The y-coordinate of the center of the tracked target in pixels.
+     * @param width_px The width of the tracked target in pixels.
+     * @param height_px The height of the tracked target in pixels.
+     * @param velocityX_px_s The velocity of the tracked target in the x-direction in pixels per second.
+     * @param velocityY_px_s The velocity of the tracked target in the y-direction in pixels per second.
+     * @param state The state of the tracker.
+     */
+    void updateTrackingResult(int cameraIndex, bool hasLock,
+                              float centerX_px, float centerY_px,
+                              float width_px, float height_px,
+                              float velocityX_px_s, float velocityY_px_s,
+                              VPITrackingState state);
+
+
+    /**
+     * @brief Starts the tracking acquisition process.
+     */
+    virtual void startTrackingAcquisition();
+
+    /**
+     * @brief Requests the tracker to lock on the target.
+     */
+    virtual void requestTrackerLockOn();
+
+    /**
+     * @brief Stops the tracking process.
+     */
+    virtual void stopTracking();
+
+    /**
+     * @brief Adjusts the size of the acquisition box.
+     * @param dW The change in width.
+     * @param dH The change in height.
+     */
+    void adjustAcquisitionBoxSize(float dW, float dH);
+
+    /**
+     * @brief Enters the surveillance mode.
+     */
+    void enterSurveillanceMode();
+
+    /**
+     * @brief Enters the idle mode.
+     */
+    void enterIdleMode();
+
+    /**
+     * @brief Commands engagement.
+     * @param start True to start engagement, false to stop.
+     */
+    virtual void commandEngagement(bool start);
+
+
+    // =================================================================
+    // 4. FIRE CONTROL AND SAFETY ZONES
+    // =================================================================
     /**
      * @brief Sets whether the current aim point is in a no-fire zone.
      * @param isInZone True if the point is in a restricted fire zone, false otherwise.
@@ -183,7 +275,11 @@ public:
      */
     bool isAtNoTraverseZoneLimit(float currentAz, float currentEl, float intendedMoveAz) const;
 
-    // --- Lead Angle Compensation ---
+
+    // =================================================================
+    // 5. BALLISTIC COMPENSATION
+    // =================================================================
+    // Lead Angle
     /**
      * @brief Sets whether lead angle compensation is active for moving targets.
      * @param active True to activate lead angle compensation, false to deactivate.
@@ -197,8 +293,54 @@ public:
      * @param status Current status of the lead angle calculation.
      */
     void updateCalculatedLeadOffsets(float offsetAz, float offsetEl, LeadAngleStatus status);
+    // Zeroing
+    /**
+     * @brief Starts the weapon zeroing procedure for ballistic calibration.
+     */
+    void startZeroingProcedure();
 
-    // --- Area Zone Management ---
+    /**
+     * @brief Applies zeroing adjustment based on reticle movement.
+     * @param deltaAz Azimuth adjustment in degrees.
+     * @param deltaEl Elevation adjustment in degrees.
+     */
+    void applyZeroingAdjustment(float deltaAz, float deltaEl);
+
+    /**
+     * @brief Finalizes the zeroing procedure and applies adjustments to ballistics.
+     */
+    void finalizeZeroing();
+
+    /**
+     * @brief Clears all zeroing adjustments and resets to default values.
+     */
+    void clearZeroing();
+    // Windage
+    /**
+     * @brief Starts the windage compensation procedure for environmental conditions.
+     */
+    void startWindageProcedure();
+
+    /**
+     * @brief Sets the wind speed for windage calculations.
+     * @param knots Wind speed in knots.
+     */
+    void setWindageSpeed(float knots);
+
+    /**
+     * @brief Finalizes the windage procedure and applies compensation to ballistics.
+     */
+    void finalizeWindage();
+
+    /**
+     * @brief Clears all windage compensation and resets to default values.
+     */
+    void clearWindage();
+
+
+    // =================================================================
+    // 6. AREA ZONE MANAGEMENT
+    // =================================================================
     /**
      * @brief Adds a new area zone to the system.
      * @param zone The area zone to add (ID will be assigned automatically).
@@ -234,7 +376,10 @@ public:
      */
     AreaZone* getAreaZoneById(int id);
 
-    // --- Auto Sector Scan Management ---
+
+    // =================================================================
+    // 7. AUTO SECTOR SCAN MANAGEMENT
+    // =================================================================
     /**
      * @brief Adds a new automatic sector scan zone to the system.
      * @param zone The sector scan zone to add (ID will be assigned automatically).
@@ -280,7 +425,10 @@ public:
      */
     virtual void selectPreviousAutoSectorScanZone();
 
-    // --- Target Reference Point (TRP) Management ---
+
+    // =================================================================
+    // 8. TARGET REFERENCE POINT (TRP) MANAGEMENT
+    // =================================================================
     /**
      * @brief Adds a new target reference point to the system.
      * @param trp The target reference point to add (ID will be assigned automatically).
@@ -326,7 +474,29 @@ public:
      */
     virtual void selectPreviousTRPLocationPage();
 
-    // --- Configuration File Management ---
+
+    // =================================================================
+    // 9. RADAR CONTROL
+    // =================================================================
+    /**
+     * @brief Selects the next radar track.
+     */
+    void selectNextRadarTrack();
+    
+    /**
+     * @brief Selects the previous radar track.
+     */
+    void selectPreviousRadarTrack();
+    
+    /**
+     * @brief Commands the gimbal to slew to the selected radar track.
+     */
+    void commandSlewToSelectedRadarTrack();
+
+
+    // =================================================================
+    // 10. CONFIGURATION FILE MANAGEMENT
+    // =================================================================
     /**
      * @brief Saves all zones (area, sector scan, TRP) to a configuration file.
      * @param filePath The path to the file where zones will be saved.
@@ -341,242 +511,40 @@ public:
      */
     bool loadZonesFromFile(const QString& filePath);
 
-    // --- Weapon Zeroing Procedures ---
-    /**
-     * @brief Starts the weapon zeroing procedure for ballistic calibration.
-     */
-    void startZeroingProcedure();
-    
-    /**
-     * @brief Applies zeroing adjustment based on reticle movement.
-     * @param deltaAz Azimuth adjustment in degrees.
-     * @param deltaEl Elevation adjustment in degrees.
-     */
-    void applyZeroingAdjustment(float deltaAz, float deltaEl);
-    
-    /**
-     * @brief Finalizes the zeroing procedure and applies adjustments to ballistics.
-     */
-    void finalizeZeroing();
-    
-    /**
-     * @brief Clears all zeroing adjustments and resets to default values.
-     */
-    void clearZeroing();
-
-    // --- Windage Compensation ---
-    /**
-     * @brief Starts the windage compensation procedure for environmental conditions.
-     */
-    void startWindageProcedure();
-    
-    /**
-     * @brief Sets the wind speed for windage calculations.
-     * @param knots Wind speed in knots.
-     */
-    void setWindageSpeed(float knots);
-    
-    /**
-     * @brief Finalizes the windage procedure and applies compensation to ballistics.
-     */
-    void finalizeWindage();
-    
-    /**
-     * @brief Clears all windage compensation and resets to default values.
-     */
-    void clearWindage();
-    /*void updateTrackedTargetInfo(int cameraIndex, bool isValid, float centerX_px, float centerY_px,
-                                 float width_px, float height_px,
-                                 float velocityX_px_s, float velocityY_px_s,
-                                 VPITrackingState state);*/
-    void updateTrackingResult(int cameraIndex, bool hasLock,
-                              float centerX_px, float centerY_px,
-                              float width_px, float height_px,
-                              float velocityX_px_s, float velocityY_px_s,
-                              VPITrackingState state);
- 
-
-    virtual void startTrackingAcquisition();
-    virtual void requestTrackerLockOn();
-    virtual void stopTracking();
-    void updateTrackingResult(bool hasLock, ...); // From VideoProcessor
-    void adjustAcquisitionBoxSize(float dW, float dH);
-    
-    // ---  State Transition Methods ---
-    // These are called by JoystickController/MainWindow based on user input
-    void enterSurveillanceMode(); // Called when station is enabled
-    void enterIdleMode();         // Called when station is disabled
-    virtual void commandEngagement(bool start); // True to start, false to stop
-    //void enterEmergencyStopMode();
-    // No need for enterTrackingMode(), as this is now handled by the TrackingPhase machine inside updateTrackingResult
 
 signals:
     // --- Core System Signals ---
-    /**
-     * @brief Emitted when system state data changes.
-     * @param newState The new system state data.
-     */
     void dataChanged(const SystemStateData &newState);
-    
-    /**
-     * @brief Emitted when UI color style changes.
-     * @param style The new color style.
-     */
     void colorStyleChanged(const QColor &style);
-    
-    /**
-     * @brief Emitted when reticle style changes.
-     * @param type The new reticle type.
-     */
     void reticleStyleChanged(const ReticleType &type);
-
     // --- Zone Management Signals ---
-    /**
-     * @brief Emitted after any zone list modification (add, modify, delete).
-     */
     void zonesChanged();
-
     // --- Gimbal and Positioning Signals ---
-    /**
-     * @brief Emitted when gimbal position changes.
-     * @param az New azimuth position in degrees.
-     * @param el New elevation position in degrees.
-     */
     void gimbalPositionChanged(float az, float el);
-
     // --- Ballistic Compensation Signals ---
-    /**
-     * @brief Emitted when zeroing state changes.
-     * @param active True if zeroing mode is active, false otherwise.
-     * @param azOffset Current azimuth offset in degrees.
-     * @param elOffset Current elevation offset in degrees.
-     */
     void zeroingStateChanged(bool active, float azOffset, float elOffset);
-    
-    /**
-     * @brief Emitted when windage state changes.
-     * @param active True if windage mode is active, false otherwise.
-     * @param speed Current wind speed in knots.
-     */
     void windageStateChanged(bool active, float speed);
-    
-    /**
-     * @brief Emitted when lead angle compensation state changes.
-     * @param active True if lead angle compensation is active, false otherwise.
-     * @param status Current lead angle calculation status.
-     * @param offsetAz Current azimuth lead offset in degrees.
-     * @param offsetEl Current elevation lead offset in degrees.
-     */
     void leadAngleStateChanged(bool active, LeadAngleStatus status, float offsetAz, float offsetEl);
 
 public slots:
     // --- Hardware Interface Slots ---
-    /**
-     * @brief Handles changes in PLC21 panel data.
-     * @param pData The new PLC21 panel data.
-     */
     void onPlc21DataChanged(const Plc21PanelData &pData);
-    
-    /**
-     * @brief Handles changes in PLC42 data.
-     * @param pData The new PLC42 data.
-     */
     void onPlc42DataChanged(const Plc42Data &pData);
-    
-    /**
-     * @brief Handles changes in servo azimuth data.
-     * @param azData The new azimuth servo data.
-     */
     void onServoAzDataChanged(const ServoData &azData);
-    
-    /**
-     * @brief Handles changes in servo elevation data.
-     * @param elData The new elevation servo data.
-     */
     void onServoElDataChanged(const ServoData &elData);
-    
-    /**
-     * @brief Handles changes in servo actuator data.
-     * @param actuatorData The new servo actuator data.
-     */
     void onServoActuatorDataChanged(const ServoActuatorData &actuatorData);
-
     // --- Sensor Data Slots ---
-    /**
-     * @brief Handles changes in laser range finder data.
-     * @param lrfData The new LRF data.
-     */
     void onLrfDataChanged(const LrfData &lrfData);
-    
-    /**
-     * @brief Handles changes in day camera data.
-     * @param dayData The new day camera data.
-     */
     void onDayCameraDataChanged(const DayCameraData &dayData);
-    
-    /**
-     * @brief Handles changes in gyroscope data.
-     * @param gyroData The new gyroscope data.
-     */
     void onGyroDataChanged(const ImuData &gyroData);
-    
-    /**
-     * @brief Handles changes in lens data.
-     * @param lensData The new lens data.
-     */
     void onLensDataChanged(const LensData &lensData);
-    
-    /**
-     * @brief Handles changes in night camera data.
-     * @param nightData The new night camera data.
-     */
     void onNightCameraDataChanged(const NightCameraData &nightData);
-
-    // --- Joystick Control Slots ---
-    /**
-     * @brief Handles joystick axis movement changes.
-     * @param axis The axis number that changed.
-     * @param normalizedValue The normalized value of the axis (-1.0 to 1.0).
-     */
-    void onJoystickAxisChanged(int axis, float normalizedValue);
-    
-    /**
-     * @brief Handles joystick button press/release changes.
-     * @param button The button number that changed.
-     * @param pressed True if the button is pressed, false if released.
-     */
-    void onJoystickButtonChanged(int button, bool pressed);
-
-    void onJoystickHatChanged(int hat, int value);
-    // --- System Mode Control Slots ---
-    /**
-     * @brief Sets the motion control mode of the system.
-     * @param newMode The new motion mode to apply.
-     */
-    virtual void setMotionMode(MotionMode newMode);
-    virtual void setOpMode(OperationalMode newOpMode);
-    // ...
-    // You also call these from JoystickController, so make them virtual:
-
-
-    
-    /**
-     * @brief Sets whether tracking restart is requested.
-     * @param restart True if tracking restart is requested, false otherwise.
-     */
-    void setTrackingRestartRequested(bool restart);
-    
-    /**
-     * @brief Sets whether tracking has started.
-     * @param start True if tracking has started, false otherwise.
-     */
-    void setTrackingStarted(bool start);
-    //void onEmergencyStopActivated(bool isActive);
     void onRadarPlotsUpdated(const QVector<RadarData>& plots); // To receive data from RadarDevice
-    void selectNextRadarTrack();
-    void selectPreviousRadarTrack();
-    void commandSlewToSelectedRadarTrack(); // Tell the gimbal to move
-    void updateStationaryStatus(SystemStateData& data);
+    // --- Joystick Control Slots ---
+    void onJoystickAxisChanged(int axis, float normalizedValue);
+    void onJoystickButtonChanged(int button, bool pressed);
+    void onJoystickHatChanged(int hat, int value);
+    
     
 private:
     SystemStateData m_currentStateData; // Central data store
@@ -587,69 +555,16 @@ private:
     int m_nextTRPId;
 
     // --- Private Helper Methods ---
-    /**
-     * @brief Gets the next available area zone ID and increments the counter.
-     * @return The next available area zone ID.
-     */
     int getNextAreaZoneId() { return m_nextAreaZoneId++; }
-    
-    /**
-     * @brief Gets the next available sector scan zone ID and increments the counter.
-     * @return The next available sector scan zone ID.
-     */
     int getNextSectorScanId() { return m_nextSectorScanId++; }
-    
-    /**
-     * @brief Gets the next available TRP ID and increments the counter.
-     * @return The next available TRP ID.
-     */
     int getNextTRPId() { return m_nextTRPId++; }
-
-    /**
-     * @brief Updates the next ID counters after loading data from file.
-     */
     void updateNextIdsAfterLoad();
-    
-    /**
-     * @brief Recalculates derived aimpoint data based on current system state.
-     */
     void recalculateDerivedAimpointData();
-    
-    /**
-     * @brief Updates camera optics parameters.
-     * @param width Camera resolution width in pixels.
-     * @param height Camera resolution height in pixels.
-     * @param hfov Horizontal field of view in degrees.
-     */
-    void updateCameraOptics(int width, int height, float hfov);
-    
-    /**
-     * @brief Updates camera optics and activity status for both day and night cameras.
-     * @param width Camera resolution width in pixels.
-     * @param height Camera resolution height in pixels.
-     * @param dayHfov Day camera horizontal field of view in degrees.
-     * @param nightHfov Night camera horizontal field of view in degrees.
-     * @param isDayActive True if day camera is active, false for night camera.
-     */
     void updateCameraOpticsAndActivity(int width, int height, float dayHfov, float nightHfov, bool isDayActive);
-    
-    /**
-     * @brief Updates the lead angle system state with calculated values.
-     * @param leadActive True if lead angle compensation is active.
-     * @param leadStatus Current status of lead angle calculations.
-     * @param calcLeadAzDeg Calculated lead azimuth in degrees.
-     * @param calcLeadElDeg Calculated lead elevation in degrees.
-     */
-    void updateLeadAngleSystemState(bool leadActive, LeadAngleStatus leadStatus, float calcLeadAzDeg, float calcLeadElDeg);
-
-    /**
-     * @brief Updates the current scan zone name for display purposes.
-     */
     void updateCurrentScanName();
-    //void processStateTransitions(const SystemStateData& oldData, const SystemStateData& newData);
     void processStateTransitions(const SystemStateData& oldData, SystemStateData& newData);
-
-    void enterEmergencyStopMode(); // You already have this
+    void enterEmergencyStopMode();
+    void updateStationaryStatus(SystemStateData& data);
 };
 
 #endif // SYSTEMSTATEMODEL_H

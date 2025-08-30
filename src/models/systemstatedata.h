@@ -562,125 +562,173 @@ struct SystemStateData {
      * @return True if all system state parameters are identical
      */
     bool operator==(const SystemStateData& other) const {
-        return opMode == other.opMode && 
-               motionMode == other.motionMode && 
-               previousOpMode == other.previousOpMode &&
-               previousMotionMode == other.previousMotionMode &&
-               reticleType == other.reticleType &&
-               osdColorStyle == other.osdColorStyle &&
-               colorStyle == other.colorStyle &&
-               currentImageWidthPx == other.currentImageWidthPx &&
-               currentImageHeightPx == other.currentImageHeightPx &&
-               qFuzzyCompare(reticleAimpointImageX_px, other.reticleAimpointImageX_px) &&
-               qFuzzyCompare(reticleAimpointImageY_px, other.reticleAimpointImageY_px) &&
-               areaZones == other.areaZones &&
-               sectorScanZones == other.sectorScanZones &&
-               targetReferencePoints == other.targetReferencePoints &&
-               activeAutoSectorScanZoneId == other.activeAutoSectorScanZoneId &&
-               activeTRPLocationPage == other.activeTRPLocationPage &&
-               currentScanName == other.currentScanName &&
-               currentTRPScanName == other.currentTRPScanName &&
-               isReticleInNoFireZone == other.isReticleInNoFireZone &&
-               isReticleInNoTraverseZone == other.isReticleInNoTraverseZone &&
-               qFuzzyCompare(dayZoomPosition, other.dayZoomPosition) &&
-               qFuzzyCompare(dayCurrentHFOV, other.dayCurrentHFOV) &&
-               dayCameraConnected == other.dayCameraConnected &&
-               dayCameraError == other.dayCameraError &&
-               dayCameraStatus == other.dayCameraStatus &&
-               qFuzzyCompare(nightZoomPosition, other.nightZoomPosition) &&
-               qFuzzyCompare(nightCurrentHFOV, other.nightCurrentHFOV) &&
-               nightCameraConnected == other.nightCameraConnected &&
-               nightCameraError == other.nightCameraError &&
-               nightCameraStatus == other.nightCameraStatus &&
-               activeCameraIsDay == other.activeCameraIsDay &&
-               qFuzzyCompare(gimbalAz, other.gimbalAz) &&
-               qFuzzyCompare(gimbalEl, other.gimbalEl) &&
-               qFuzzyCompare(azMotorTemp, other.azMotorTemp) &&
-               qFuzzyCompare(azDriverTemp, other.azDriverTemp) &&
-               qFuzzyCompare(elMotorTemp, other.elMotorTemp) &&
-               qFuzzyCompare(elDriverTemp, other.elDriverTemp) &&
-               qFuzzyCompare(reticleAz, other.reticleAz) &&
-               qFuzzyCompare(reticleEl, other.reticleEl) &&
-               qFuzzyCompare(actuatorPosition, other.actuatorPosition) &&
-               qFuzzyCompare(imuRollDeg, other.imuRollDeg) &&
-               qFuzzyCompare(imuPitchDeg, other.imuPitchDeg) &&
-               qFuzzyCompare(imuYawDeg, other.imuYawDeg) &&
-                qFuzzyCompare(temperature, other.temperature) &&
-                AccelX == other.AccelX &&
-                AccelY == other.AccelY &&
-                AccelZ == other.AccelZ &&
-                GyroX == other.GyroX &&
-                GyroY == other.GyroY &&
-                GyroZ == other.GyroZ &&
-               enableStabilization == other.enableStabilization &&
-               qFuzzyCompare(lrfDistance, other.lrfDistance) &&
-               lrfSystemStatus == other.lrfSystemStatus &&
-               deadManSwitchActive == other.deadManSwitchActive &&
-               qFuzzyCompare(joystickAzValue, other.joystickAzValue) &&
-               qFuzzyCompare(joystickElValue, other.joystickElValue) &&
-               upTrackButton == other.upTrackButton &&
-               downTrackButton == other.downTrackButton &&
-               menuUp == other.menuUp &&
-               menuDown == other.menuDown &&
-               menuVal == other.menuVal &&
-               stationEnabled == other.stationEnabled &&
-               gotoHomePosition == other.gotoHomePosition &&
-               gunArmed == other.gunArmed &&
-               ammoLoaded == other.ammoLoaded &&
+        return
+            // OPERATIONAL STATE & MODES
+            opMode == other.opMode &&
+            previousOpMode == other.previousOpMode &&
+            motionMode == other.motionMode &&
+            previousMotionMode == other.previousMotionMode &&
 
-               authorized == other.authorized &&
-               detectionEnabled == other.detectionEnabled &&
-               fireMode == other.fireMode &&
-               qFuzzyCompare(gimbalSpeed, other.gimbalSpeed) &&
-               upperLimitSensorActive == other.upperLimitSensorActive &&
-               lowerLimitSensorActive == other.lowerLimitSensorActive &&
-               emergencyStopActive == other.emergencyStopActive &&
-               stationAmmunitionLevel == other.stationAmmunitionLevel &&
-               stationInput1 == other.stationInput1 &&
-               stationInput2 == other.stationInput2 &&
-               stationInput3 == other.stationInput3 &&
-               panelTemperature == other.panelTemperature &&
-               stationTemperature == other.stationTemperature &&
-               stationPressure == other.stationPressure &&
-               solenoidMode == other.solenoidMode &&
-               gimbalOpMode == other.gimbalOpMode &&
-               azimuthSpeed == other.azimuthSpeed &&
-               elevationSpeed == other.elevationSpeed &&
-               azimuthDirection == other.azimuthDirection &&
-               elevationDirection == other.elevationDirection &&
-               solenoidState == other.solenoidState &&
-               resetAlarm == other.resetAlarm &&
-               upTrack == other.upTrack &&
-               downTrack == other.downTrack &&
-               valTrack == other.valTrack &&
-               startTracking == other.startTracking &&
-               requestTrackingRestart == other.requestTrackingRestart &&
-               trackingActive == other.trackingActive &&
-               qFuzzyCompare(targetAz, other.targetAz) &&
-               qFuzzyCompare(targetEl, other.targetEl) &&
-               zeroingModeActive == other.zeroingModeActive &&
-               qFuzzyCompare(zeroingAzimuthOffset, other.zeroingAzimuthOffset) &&
-               qFuzzyCompare(zeroingElevationOffset, other.zeroingElevationOffset) &&
-               zeroingAppliedToBallistics == other.zeroingAppliedToBallistics &&
-               windageModeActive == other.windageModeActive &&
-               qFuzzyCompare(windageSpeedKnots, other.windageSpeedKnots) &&
-               windageAppliedToBallistics == other.windageAppliedToBallistics &&
-               leadAngleCompensationActive == other.leadAngleCompensationActive &&
-               currentLeadAngleStatus == other.currentLeadAngleStatus &&
-               qFuzzyCompare(leadAngleOffsetAz, other.leadAngleOffsetAz) &&
-               qFuzzyCompare(leadAngleOffsetEl, other.leadAngleOffsetEl) &&
-               qFuzzyCompare(currentTargetRange, other.currentTargetRange) &&
-               qFuzzyCompare(currentTargetAngularRateAz, other.currentTargetAngularRateAz) &&
-               qFuzzyCompare(currentTargetAngularRateEl, other.currentTargetAngularRateEl) &&
-               qFuzzyCompare(muzzleVelocityMPS, other.muzzleVelocityMPS) &&
-               weaponSystemStatus == other.weaponSystemStatus &&
-               targetInformation == other.targetInformation &&
-               gpsCoordinates == other.gpsCoordinates &&
-               sensorReadings == other.sensorReadings &&
-               alertsWarnings == other.alertsWarnings &&
-               leadStatusText == other.leadStatusText &&
-               zeroingStatusText == other.zeroingStatusText&&
-               (radarPlots == other.radarPlots);
+            // DISPLAY & UI CONFIGURATION
+            reticleType == other.reticleType &&
+            osdColorStyle == other.osdColorStyle &&
+            colorStyle == other.colorStyle &&
+            currentImageWidthPx == other.currentImageWidthPx &&
+            currentImageHeightPx == other.currentImageHeightPx &&
+            qFuzzyCompare(reticleAimpointImageX_px, other.reticleAimpointImageX_px) &&
+            qFuzzyCompare(reticleAimpointImageY_px, other.reticleAimpointImageY_px) &&
+
+            // ZONE MANAGEMENT
+            areaZones == other.areaZones &&
+            sectorScanZones == other.sectorScanZones &&
+            targetReferencePoints == other.targetReferencePoints &&
+            activeAutoSectorScanZoneId == other.activeAutoSectorScanZoneId &&
+            activeTRPLocationPage == other.activeTRPLocationPage &&
+            currentScanName == other.currentScanName &&
+            currentTRPScanName == other.currentTRPScanName &&
+            isReticleInNoFireZone == other.isReticleInNoFireZone &&
+            isReticleInNoTraverseZone == other.isReticleInNoTraverseZone &&
+
+            // CAMERA SYSTEMS
+            qFuzzyCompare(dayZoomPosition, other.dayZoomPosition) &&
+            qFuzzyCompare(dayCurrentHFOV, other.dayCurrentHFOV) &&
+            dayCameraConnected == other.dayCameraConnected &&
+            dayCameraError == other.dayCameraError &&
+            dayCameraStatus == other.dayCameraStatus &&
+            qFuzzyCompare(nightZoomPosition, other.nightZoomPosition) &&
+            qFuzzyCompare(nightCurrentHFOV, other.nightCurrentHFOV) &&
+            nightCameraConnected == other.nightCameraConnected &&
+            nightCameraError == other.nightCameraError &&
+            nightCameraStatus == other.nightCameraStatus &&
+            activeCameraIsDay == other.activeCameraIsDay &&
+
+            // GIMBAL & POSITIONING SYSTEM
+            qFuzzyCompare(gimbalAz, other.gimbalAz) &&
+            qFuzzyCompare(gimbalEl, other.gimbalEl) &&
+            qFuzzyCompare(azMotorTemp, other.azMotorTemp) &&
+            qFuzzyCompare(azDriverTemp, other.azDriverTemp) &&
+            qFuzzyCompare(elMotorTemp, other.elMotorTemp) &&
+            qFuzzyCompare(elDriverTemp, other.elDriverTemp) &&
+            qFuzzyCompare(reticleAz, other.reticleAz) &&
+            qFuzzyCompare(reticleEl, other.reticleEl) &&
+            qFuzzyCompare(actuatorPosition, other.actuatorPosition) &&
+
+            // ORIENTATION & STABILIZATION
+            qFuzzyCompare(imuRollDeg, other.imuRollDeg) &&
+            qFuzzyCompare(imuPitchDeg, other.imuPitchDeg) &&
+            qFuzzyCompare(imuYawDeg, other.imuYawDeg) &&
+            qFuzzyCompare(GyroX, other.GyroX) &&
+            qFuzzyCompare(GyroY, other.GyroY) &&
+            qFuzzyCompare(GyroZ, other.GyroZ) &&
+            qFuzzyCompare(AccelX, other.AccelX) &&
+            qFuzzyCompare(AccelY, other.AccelY) &&
+            qFuzzyCompare(AccelZ, other.AccelZ) &&
+            isStabilizationActive == other.isStabilizationActive &&
+            qFuzzyCompare(temperature, other.temperature) &&
+            isVehicleStationary == other.isVehicleStationary &&
+            qFuzzyCompare(previousAccelMagnitude, other.previousAccelMagnitude) &&
+            stationaryStartTime == other.stationaryStartTime &&
+
+            // LASER RANGE FINDER (LRF)
+            qFuzzyCompare(lrfDistance, other.lrfDistance) &&
+            lrfSystemStatus == other.lrfSystemStatus &&
+            isOverTemperature == other.isOverTemperature &&
+
+            // Radar Data
+            radarPlots == other.radarPlots &&
+            selectedRadarTrackId == other.selectedRadarTrackId &&
+
+            // JOYSTICK & MANUAL CONTROLS
+            deadManSwitchActive == other.deadManSwitchActive &&
+            qFuzzyCompare(joystickAzValue, other.joystickAzValue) &&
+            qFuzzyCompare(joystickElValue, other.joystickElValue) &&
+            upTrackButton == other.upTrackButton &&
+            downTrackButton == other.downTrackButton &&
+            menuUp == other.menuUp &&
+            menuDown == other.menuDown &&
+            menuVal == other.menuVal &&
+            joystickHatDirection == other.joystickHatDirection &&
+
+            // WEAPON SYSTEM CONTROL (PLC21)
+            stationEnabled == other.stationEnabled &&
+            gotoHomePosition == other.gotoHomePosition &&
+            gunArmed == other.gunArmed &&
+            ammoLoaded == other.ammoLoaded &&
+            authorized == other.authorized &&
+            detectionEnabled == other.detectionEnabled &&
+            fireMode == other.fireMode &&
+            qFuzzyCompare(gimbalSpeed, other.gimbalSpeed) &&
+            enableStabilization == other.enableStabilization &&
+
+            // GIMBAL STATION HARDWARE (PLC42)
+            upperLimitSensorActive == other.upperLimitSensorActive &&
+            lowerLimitSensorActive == other.lowerLimitSensorActive &&
+            emergencyStopActive == other.emergencyStopActive &&
+            stationAmmunitionLevel == other.stationAmmunitionLevel &&
+            stationInput1 == other.stationInput1 &&
+            stationInput2 == other.stationInput2 &&
+            stationInput3 == other.stationInput3 &&
+            panelTemperature == other.panelTemperature &&
+            stationTemperature == other.stationTemperature &&
+            stationPressure == other.stationPressure &&
+            solenoidMode == other.solenoidMode &&
+            gimbalOpMode == other.gimbalOpMode &&
+            azimuthSpeed == other.azimuthSpeed &&
+            elevationSpeed == other.elevationSpeed &&
+            azimuthDirection == other.azimuthDirection &&
+            elevationDirection == other.elevationDirection &&
+            solenoidState == other.solenoidState &&
+            resetAlarm == other.resetAlarm &&
+
+            // TRACKING SYSTEM
+            upTrack == other.upTrack &&
+            downTrack == other.downTrack &&
+            valTrack == other.valTrack &&
+            startTracking == other.startTracking &&
+            requestTrackingRestart == other.requestTrackingRestart &&
+            trackingActive == other.trackingActive &&
+            qFuzzyCompare(targetAz, other.targetAz) &&
+            qFuzzyCompare(targetEl, other.targetEl) &&
+            qFuzzyCompare(trackedTargetVelocityX_px_s, other.trackedTargetVelocityX_px_s) &&
+            qFuzzyCompare(trackedTargetVelocityY_px_s, other.trackedTargetVelocityY_px_s) &&
+            qFuzzyCompare(currentCameraHfovDegrees, other.currentCameraHfovDegrees) &&
+            trackerHasValidTarget == other.trackerHasValidTarget &&
+            qFuzzyCompare(trackedTargetCenterX_px, other.trackedTargetCenterX_px) &&
+            qFuzzyCompare(trackedTargetCenterY_px, other.trackedTargetCenterY_px) &&
+            qFuzzyCompare(trackedTargetWidth_px, other.trackedTargetWidth_px) &&
+            qFuzzyCompare(trackedTargetHeight_px, other.trackedTargetHeight_px) &&
+            trackedTargetState == other.trackedTargetState &&
+            currentTrackingPhase == other.currentTrackingPhase &&
+            qFuzzyCompare(acquisitionBoxX_px, other.acquisitionBoxX_px) &&
+            qFuzzyCompare(acquisitionBoxY_px, other.acquisitionBoxY_px) &&
+            qFuzzyCompare(acquisitionBoxW_px, other.acquisitionBoxW_px) &&
+            qFuzzyCompare(acquisitionBoxH_px, other.acquisitionBoxH_px) &&
+
+            // BALLISTICS & FIRE CONTROL
+            zeroingModeActive == other.zeroingModeActive &&
+            qFuzzyCompare(zeroingAzimuthOffset, other.zeroingAzimuthOffset) &&
+            qFuzzyCompare(zeroingElevationOffset, other.zeroingElevationOffset) &&
+            zeroingAppliedToBallistics == other.zeroingAppliedToBallistics &&
+            windageModeActive == other.windageModeActive &&
+            qFuzzyCompare(windageSpeedKnots, other.windageSpeedKnots) &&
+            windageAppliedToBallistics == other.windageAppliedToBallistics &&
+            leadAngleCompensationActive == other.leadAngleCompensationActive &&
+            currentLeadAngleStatus == other.currentLeadAngleStatus &&
+            qFuzzyCompare(leadAngleOffsetAz, other.leadAngleOffsetAz) &&
+            qFuzzyCompare(leadAngleOffsetEl, other.leadAngleOffsetEl) &&
+            qFuzzyCompare(currentTargetRange, other.currentTargetRange) &&
+            qFuzzyCompare(currentTargetAngularRateAz, other.currentTargetAngularRateAz) &&
+            qFuzzyCompare(currentTargetAngularRateEl, other.currentTargetAngularRateEl) &&
+            qFuzzyCompare(muzzleVelocityMPS, other.muzzleVelocityMPS) &&
+
+            // STATUS & INFORMATION DISPLAY
+            weaponSystemStatus == other.weaponSystemStatus &&
+            targetInformation == other.targetInformation &&
+            gpsCoordinates == other.gpsCoordinates &&
+            sensorReadings == other.sensorReadings &&
+            alertsWarnings == other.alertsWarnings &&
+            leadStatusText == other.leadStatusText &&
+            zeroingStatusText == other.zeroingStatusText;
     }
     
     bool operator!=(const SystemStateData& other) const {
