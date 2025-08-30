@@ -1,5 +1,19 @@
 #include "systemstatemodel.h"
 #include <QDebug>
+
+// Helper for Azimuth checks considering wrap-around
+bool isAzimuthInRange(float targetAz, float startAz, float endAz) {
+    // Normalize all to 0-360
+    targetAz = std::fmod(targetAz + 360.0f, 360.0f);
+    startAz = std::fmod(startAz + 360.0f, 360.0f);
+    endAz = std::fmod(endAz + 360.0f, 360.0f);
+
+    if (startAz <= endAz) { // Normal case, e.g., 30 to 60
+        return targetAz >= startAz && targetAz <= endAz;
+    } else { // Wraps around 360, e.g., 350 to 10
+        return targetAz >= startAz || targetAz <= endAz;
+    }
+}
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -42,7 +56,7 @@ void SystemStateModel::updateData(const SystemStateData &newState) {
 
     SystemStateData oldData = m_currentStateData;
 
-    if (oldData == newState) {
+    if (oldData == newState) { 
         return;
     }
     if (m_currentStateData != newState) {
@@ -63,13 +77,13 @@ void SystemStateModel::setMotionMode(MotionMode newMode) {
     if(m_currentStateData.motionMode != newMode) {
         m_currentStateData.previousMotionMode = m_currentStateData.motionMode;
         if (m_currentStateData.motionMode == MotionMode::AutoSectorScan || m_currentStateData.motionMode == MotionMode::TRPScan) {
-            m_currentStateData.currentScanName = "";
+            m_currentStateData.currentScanName = ""; 
         }
         m_currentStateData.motionMode = newMode;
 
         emit dataChanged(m_currentStateData);
          if (newMode == MotionMode::AutoSectorScan || newMode == MotionMode::TRPScan) {
-            updateCurrentScanName();
+            updateCurrentScanName(); 
         }
     }
 }
@@ -111,15 +125,16 @@ void SystemStateModel::setTrackingStarted(bool start) { if(m_currentStateData.st
 
 void SystemStateModel::updateTrackingResult(
     int cameraIndex,
-    bool hasLock,
+    bool hasLock, 
     float centerX_px, float centerY_px,
     float width_px, float height_px,
     float velocityX_px_s, float velocityY_px_s,
     VPITrackingState trackerState)
 {
+    Q_UNUSED(hasLock);
     int activeCameraIndex = m_currentStateData.activeCameraIsDay ? 0 : 1;
     if (cameraIndex != activeCameraIndex) {
-        return;
+        return; 
     }
 
     SystemStateData& data = m_currentStateData;
@@ -144,7 +159,7 @@ void SystemStateModel::updateTrackingResult(
                 qWarning() << "[MODEL] Received tracking data while in Off phase. Resetting model tracking state.";
                 data.trackerHasValidTarget = false;
                 data.trackedTargetState = VPI_TRACKING_STATE_LOST;
-                data.motionMode = MotionMode::Manual;
+                data.motionMode = MotionMode::Manual; 
             }
             break;
 
@@ -159,13 +174,13 @@ void SystemStateModel::updateTrackingResult(
             if (trackerState == VPI_TRACKING_STATE_TRACKED) {
                 data.currentTrackingPhase = TrackingPhase::Tracking_ActiveLock;
                 data.opMode = OperationalMode::Tracking;
-                data.motionMode = MotionMode::AutoTrack;
+                data.motionMode = MotionMode::AutoTrack; 
                 qInfo() << "[MODEL] Valid Lock Acquired! Phase -> ActiveLock (" << static_cast<int>(data.currentTrackingPhase) << ")";
             } else if (trackerState == VPI_TRACKING_STATE_LOST) {
-                data.currentTrackingPhase = TrackingPhase::Off;
+                data.currentTrackingPhase = TrackingPhase::Off; 
                 data.opMode = OperationalMode::Idle;
-                data.motionMode = MotionMode::Manual;
-                data.trackerHasValidTarget = false;
+                data.motionMode = MotionMode::Manual; 
+                data.trackerHasValidTarget = false; 
                 qWarning() << "[MODEL] Tracker failed to acquire lock (LOST). Returning to Off (" << static_cast<int>(data.currentTrackingPhase) << ").";
             } else if (trackerState == VPI_TRACKING_STATE_NEW) {
                 qDebug() << "[MODEL] In LockPending, tracker initialized (NEW). Waiting for lock.";
@@ -176,10 +191,10 @@ void SystemStateModel::updateTrackingResult(
 
         case TrackingPhase::Tracking_ActiveLock:
             if (trackerState == VPI_TRACKING_STATE_LOST) {
-                data.currentTrackingPhase = TrackingPhase::Tracking_Coast;
-                data.opMode = OperationalMode::Tracking;
-                data.motionMode = MotionMode::Manual;
-                data.trackerHasValidTarget = false;
+                data.currentTrackingPhase = TrackingPhase::Tracking_Coast; 
+                data.opMode = OperationalMode::Tracking; 
+                data.motionMode = MotionMode::Manual; 
+                data.trackerHasValidTarget = false; 
                 qWarning() << "[MODEL] Target lost during active tracking. Transitioning to Coast (" << static_cast<int>(data.currentTrackingPhase) << ").";
             } else if (trackerState == VPI_TRACKING_STATE_TRACKED) {
                 qDebug() << "[MODEL] ActiveLock: Target still tracked.";
@@ -218,7 +233,7 @@ void SystemStateModel::updateTrackingResult(
         qDebug() << "[MODEL-OUT] Emitting dataChanged. New Phase:" << static_cast<int>(data.currentTrackingPhase)
                  << "Valid Target:" << data.trackerHasValidTarget;
          qDebug() << "trackedTarget_position: (" << data.trackedTargetCenterX_px << ", " << data.trackedTargetCenterY_px << ")";
-
+         
         emit dataChanged(m_currentStateData);
     }
 }
@@ -300,7 +315,7 @@ void SystemStateModel::enterIdleMode() {
     data.opMode = OperationalMode::Idle;
     data.motionMode = MotionMode::Idle;
     if (data.currentTrackingPhase != TrackingPhase::Off) {
-        stopTracking();
+        stopTracking(); 
     }
     emit dataChanged(m_currentStateData);
 }
@@ -315,7 +330,7 @@ void SystemStateModel::commandEngagement(bool start) {
         data.previousOpMode = data.opMode;
         data.previousMotionMode = data.motionMode;
         data.opMode = OperationalMode::Engagement;
-    } else {
+    } else { 
         if (data.opMode != OperationalMode::Engagement) return;
         qDebug() << "[MODEL] Exiting Engagement Mode, reverting to previous state.";
         data.opMode = data.previousOpMode;
@@ -343,7 +358,7 @@ bool SystemStateModel::isPointInNoFireZone(float targetAz, float targetEl, float
         if (zone.isEnabled && zone.type == ZoneType::NoFire) {
             bool azMatch = isAzimuthInRange(targetAz, zone.startAzimuth, zone.endAzimuth);
             bool elMatch = (targetEl >= zone.minElevation && targetEl <= zone.maxElevation);
-            bool rangeMatch = true;
+            bool rangeMatch = true; 
             if (azMatch && elMatch && rangeMatch) {
                 return true;
             }
@@ -364,37 +379,25 @@ bool SystemStateModel::isPointInNoTraverseZone(float targetAz, float currentEl) 
     return false;
 }
 
-bool isAzimuthInRange(float targetAz, float startAz, float endAz) {
-    // Normalize all to 0-360
-    targetAz = std::fmod(targetAz + 360.0f, 360.0f);
-    startAz = std::fmod(startAz + 360.0f, 360.0f);
-    endAz = std::fmod(endAz + 360.0f, 360.0f);
-
-    if (startAz <= endAz) { // Normal case, e.g., 30 to 60
-        return targetAz >= startAz && targetAz <= endAz;
-    } else { // Wraps around 360, e.g., 350 to 10
-        return targetAz >= startAz || targetAz <= endAz;
-    }
-}
 // =================================================================
 // 5. BALLISTIC COMPENSATION
 // =================================================================
 void SystemStateModel::setLeadAngleCompensationActive(bool active) {
     if (m_currentStateData.leadAngleCompensationActive != active) {
         m_currentStateData.leadAngleCompensationActive = active;
-        if (!active) {
+        if (!active) { 
             m_currentStateData.currentLeadAngleStatus = LeadAngleStatus::Off;
             m_currentStateData.leadAngleOffsetAz = 0.0f;
             m_currentStateData.leadAngleOffsetEl = 0.0f;
-        } else {
+        } else { 
              m_currentStateData.currentLeadAngleStatus = LeadAngleStatus::On;
         }
         qDebug() << "Lead Angle Compensation active:" << active;
-        if (!active) {
+        if (!active) { 
             m_currentStateData.currentLeadAngleStatus = LeadAngleStatus::Off;
-            m_currentStateData.leadAngleOffsetAz = 0.0f;
+            m_currentStateData.leadAngleOffsetAz = 0.0f; 
             m_currentStateData.leadAngleOffsetEl = 0.0f;
-        } else {
+        } else { 
              m_currentStateData.currentLeadAngleStatus = LeadAngleStatus::On;
         }
 
@@ -424,7 +427,7 @@ void SystemStateModel::updateCalculatedLeadOffsets(float angularLeadAz, float an
                  << "El" << angularLeadEl << "Status:" << static_cast<int>(statusFromCalc)
                  << "LAC Active in model:" << m_currentStateData.leadAngleCompensationActive;
 
-        recalculateDerivedAimpointData();
+        recalculateDerivedAimpointData(); 
     }
     updateData(m_currentStateData);
 }
@@ -445,7 +448,7 @@ void SystemStateModel::applyZeroingAdjustment(float deltaAz, float deltaEl) {
 
         qDebug() << "Zeroing adjustment applied. New offsets Az:" << m_currentStateData.zeroingAzimuthOffset
                  << "El:" << m_currentStateData.zeroingElevationOffset;
-        emit dataChanged(m_currentStateData);
+        emit dataChanged(m_currentStateData); 
         emit zeroingStateChanged(true, m_currentStateData.zeroingAzimuthOffset, m_currentStateData.zeroingElevationOffset);
     }
 }
@@ -453,7 +456,7 @@ void SystemStateModel::applyZeroingAdjustment(float deltaAz, float deltaEl) {
 void SystemStateModel::finalizeZeroing() {
     if (m_currentStateData.zeroingModeActive) {
         m_currentStateData.zeroingModeActive = false;
-        m_currentStateData.zeroingAppliedToBallistics = true;
+        m_currentStateData.zeroingAppliedToBallistics = true; 
         qDebug() << "Zeroing procedure finalized. Offsets Az:" << m_currentStateData.zeroingAzimuthOffset
                  << "El:" << m_currentStateData.zeroingElevationOffset;
         emit dataChanged(m_currentStateData);
@@ -461,7 +464,7 @@ void SystemStateModel::finalizeZeroing() {
     }
 }
 
-void SystemStateModel::clearZeroing() {
+void SystemStateModel::clearZeroing() { 
     m_currentStateData.zeroingModeActive = false;
     m_currentStateData.zeroingAzimuthOffset = 0.0f;
     m_currentStateData.zeroingElevationOffset = 0.0f;
@@ -482,7 +485,7 @@ void SystemStateModel::startWindageProcedure() {
 
 void SystemStateModel::setWindageSpeed(float knots) {
     if (m_currentStateData.windageModeActive) {
-        m_currentStateData.windageSpeedKnots = qMax(0.0f, knots);
+        m_currentStateData.windageSpeedKnots = qMax(0.0f, knots); 
         qDebug() << "Windage speed set to:" << m_currentStateData.windageSpeedKnots << "knots";
         emit dataChanged(m_currentStateData);
         emit windageStateChanged(true, m_currentStateData.windageSpeedKnots);
@@ -492,7 +495,7 @@ void SystemStateModel::setWindageSpeed(float knots) {
 void SystemStateModel::finalizeWindage() {
     if (m_currentStateData.windageModeActive) {
         m_currentStateData.windageModeActive = false;
-        m_currentStateData.windageAppliedToBallistics = (m_currentStateData.windageSpeedKnots > 0.001f);
+        m_currentStateData.windageAppliedToBallistics = (m_currentStateData.windageSpeedKnots > 0.001f); 
         qDebug() << "Windage procedure finalized. Speed:" << m_currentStateData.windageSpeedKnots
                  << "Applied:" << m_currentStateData.windageAppliedToBallistics;
         emit dataChanged(m_currentStateData);
@@ -500,7 +503,7 @@ void SystemStateModel::finalizeWindage() {
     }
 }
 
-void SystemStateModel::clearWindage() {
+void SystemStateModel::clearWindage() { 
     m_currentStateData.windageModeActive = false;
     m_currentStateData.windageSpeedKnots = 0.0f;
     m_currentStateData.windageAppliedToBallistics = false;
@@ -521,7 +524,7 @@ AreaZone* SystemStateModel::getAreaZoneById(int id) {
 }
 
 bool SystemStateModel::addAreaZone(AreaZone zone) {
-    zone.id = getNextAreaZoneId();
+    zone.id = getNextAreaZoneId(); 
     m_currentStateData.areaZones.push_back(zone);
     qDebug() << "Added AreaZone with ID:" << zone.id;
     emit zonesChanged();
@@ -531,8 +534,8 @@ bool SystemStateModel::addAreaZone(AreaZone zone) {
 bool SystemStateModel::modifyAreaZone(int id, const AreaZone& updatedZoneData) {
     AreaZone* zonePtr = getAreaZoneById(id);
     if (zonePtr) {
-        *zonePtr = updatedZoneData;
-        zonePtr->id = id;
+        *zonePtr = updatedZoneData; 
+        zonePtr->id = id; 
         qDebug() << "Modified AreaZone with ID:" << id;
         emit zonesChanged();
         return true;
@@ -609,7 +612,7 @@ void SystemStateModel::selectNextAutoSectorScanZone() {
     SystemStateData& data = m_currentStateData;
     if (data.sectorScanZones.empty()) {
         data.activeAutoSectorScanZoneId = -1;
-        updateCurrentScanName();
+        updateCurrentScanName(); 
         emit dataChanged(data);
         return;
     }
@@ -641,41 +644,37 @@ void SystemStateModel::selectNextAutoSectorScanZone() {
     emit dataChanged(data);
 }
 
-void SystemStateModel::selectPreviousAutoSectorScanZone() {
+void SystemStateModel::selectPreviousTRPLocationPage() {
     SystemStateData& data = m_currentStateData;
-    if (data.sectorScanZones.empty()) {
-        data.activeAutoSectorScanZoneId = -1;
+
+    std::set<int> definedPagesSet;
+    for (const auto& trp : data.targetReferencePoints) {
+        definedPagesSet.insert(trp.locationPage);
+    }
+
+    if (definedPagesSet.empty()) {
+        qDebug() << "selectPreviousTRPLocationPage: No TRP pages defined at all.";
         updateCurrentScanName();
         emit dataChanged(data);
         return;
     }
 
-    std::vector<int> enabledZoneIds;
-    for (const auto& zone : data.sectorScanZones) {
-        if (zone.isEnabled) {
-            enabledZoneIds.push_back(zone.id);
-        }
-    }
-    if (enabledZoneIds.empty()) {
-        data.activeAutoSectorScanZoneId = -1;
-        updateCurrentScanName();
-        emit dataChanged(data);
-        return;
-    }
-    std::sort(enabledZoneIds.begin(), enabledZoneIds.end());
+    std::vector<int> sortedDefinedPages;
+    std::copy(definedPagesSet.begin(), definedPagesSet.end(), std::back_inserter(sortedDefinedPages));
 
-    auto it = std::find(enabledZoneIds.begin(), enabledZoneIds.end(), data.activeAutoSectorScanZoneId);
+    auto it = std::find(sortedDefinedPages.begin(), sortedDefinedPages.end(), data.activeTRPLocationPage);
 
-    if (it == enabledZoneIds.end() || it == enabledZoneIds.begin()) {
-        data.activeAutoSectorScanZoneId = enabledZoneIds.back();
+    if (it == sortedDefinedPages.end() || it == sortedDefinedPages.begin()) {
+        data.activeTRPLocationPage = sortedDefinedPages.back();
     } else {
-        data.activeAutoSectorScanZoneId = *std::prev(it);
+        data.activeTRPLocationPage = *std::prev(it);
     }
-    qDebug() << "Selected previous Auto Sector Scan Zone ID:" << data.activeAutoSectorScanZoneId;
+
+    qDebug() << "Selected previous TRP Location Page:" << data.activeTRPLocationPage;
     updateCurrentScanName();
     emit dataChanged(data);
-        updateData(data);
 }
+
 
 // =================================================================
 // 8. TARGET REFERENCE POINT (TRP) MANAGEMENT
@@ -736,12 +735,13 @@ void SystemStateModel::selectNextTRPLocationPage() {
 
     if (definedPagesSet.empty()) {
         qDebug() << "selectNextTRPLocationPage: No TRP pages defined at all.";
-        updateCurrentScanName();
+        updateCurrentScanName(); 
         emit dataChanged(data);
         return;
     }
 
-    std::vector<int> sortedDefinedPages(definedPagesSet.begin(), definedPagesSet.end());
+    std::vector<int> sortedDefinedPages;
+    std::copy(definedPagesSet.begin(), definedPagesSet.end(), std::back_inserter(sortedDefinedPages));
 
     auto it = std::find(sortedDefinedPages.begin(), sortedDefinedPages.end(), data.activeTRPLocationPage);
 
@@ -752,40 +752,45 @@ void SystemStateModel::selectNextTRPLocationPage() {
     }
 
     qDebug() << "Selected next TRP Location Page:" << data.activeTRPLocationPage;
-    updateCurrentScanName();
+    updateCurrentScanName(); 
     emit dataChanged(data);
 }
 
-void SystemStateModel::selectPreviousTRPLocationPage() {
+void SystemStateModel::selectPreviousAutoSectorScanZone() {
     SystemStateData& data = m_currentStateData;
-
-    std::set<int> definedPagesSet;
-    for (const auto& trp : data.targetReferencePoints) {
-        definedPagesSet.insert(trp.locationPage);
-    }
-
-    if (definedPagesSet.empty()) {
-        qDebug() << "selectPreviousTRPLocationPage: No TRP pages defined at all.";
+    if (data.sectorScanZones.empty()) {
+        data.activeAutoSectorScanZoneId = -1;
         updateCurrentScanName();
         emit dataChanged(data);
         return;
     }
 
-    std::vector<int> sortedDefinedPages(definedPagesSet.begin(), sortedDefinedPages.end());
-
-    auto it = std::find(sortedDefinedPages.begin(), sortedDefinedPages.end(), data.activeTRPLocationPage);
-
-    if (it == sortedDefinedPages.end() || it == sortedDefinedPages.begin()) {
-        data.activeTRPLocationPage = sortedDefinedPages.back();
-    } else {
-        data.activeTRPLocationPage = *std::prev(it);
+    std::vector<int> enabledZoneIds;
+    for (const auto& zone : data.sectorScanZones) {
+        if (zone.isEnabled) {
+            enabledZoneIds.push_back(zone.id);
+        }
     }
+    if (enabledZoneIds.empty()) {
+        data.activeAutoSectorScanZoneId = -1;
+        updateCurrentScanName();
+        emit dataChanged(data);
+        return;
+    }
+    std::sort(enabledZoneIds.begin(), enabledZoneIds.end());
 
-    qDebug() << "Selected previous TRP Location Page:" << data.activeTRPLocationPage;
+    auto it = std::find(enabledZoneIds.begin(), enabledZoneIds.end(), data.activeAutoSectorScanZoneId);
+
+    if (it == enabledZoneIds.end() || it == enabledZoneIds.begin()) {
+        data.activeAutoSectorScanZoneId = enabledZoneIds.back();
+    } else {
+        data.activeAutoSectorScanZoneId = *std::prev(it);
+    }
+    qDebug() << "Selected previous Auto Sector Scan Zone ID:" << data.activeAutoSectorScanZoneId;
     updateCurrentScanName();
     emit dataChanged(data);
+        updateData(data);
 }
-
 
 // =================================================================
 // 9. RADAR CONTROL
@@ -844,7 +849,7 @@ void SystemStateModel::commandSlewToSelectedRadarTrack() {
 // =================================================================
 bool SystemStateModel::saveZonesToFile(const QString& filePath) {
     QJsonObject rootObject;
-    rootObject["zoneFileVersion"] = 1;
+    rootObject["zoneFileVersion"] = 1; 
 
     rootObject["nextAreaZoneId"] = m_nextAreaZoneId;
     rootObject["nextSectorScanId"] = m_nextSectorScanId;
@@ -854,7 +859,7 @@ bool SystemStateModel::saveZonesToFile(const QString& filePath) {
     for (const auto& zone : m_currentStateData.areaZones) {
         QJsonObject zoneObj;
         zoneObj["id"] = zone.id;
-        zoneObj["type"] = static_cast<int>(zone.type);
+        zoneObj["type"] = static_cast<int>(zone.type); 
         zoneObj["isEnabled"] = zone.isEnabled;
         zoneObj["isFactorySet"] = zone.isFactorySet;
         zoneObj["isOverridable"] = zone.isOverridable;
@@ -913,7 +918,7 @@ bool SystemStateModel::loadZonesFromFile(const QString& filePath) {
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         qWarning() << "Could not open file for reading:" << filePath << file.errorString();
-        return false;
+        return false; 
     }
 
     QByteArray jsonData = file.readAll();
@@ -953,7 +958,7 @@ bool SystemStateModel::loadZonesFromFile(const QString& filePath) {
                 QJsonObject zoneObj = value.toObject();
                 AreaZone zone;
                 zone.id = zoneObj.value("id").toInt(-1);
-                zone.type = static_cast<ZoneType>(zoneObj.value("type").toInt(static_cast<int>(ZoneType::Safety)));
+                zone.type = static_cast<ZoneType>(zoneObj.value("type").toInt(static_cast<int>(ZoneType::Safety))); 
                 zone.isEnabled = zoneObj.value("isEnabled").toBool(false);
                 zone.isFactorySet = zoneObj.value("isFactorySet").toBool(false);
                 zone.isOverridable = zoneObj.value("isOverridable").toBool(false);
@@ -965,7 +970,7 @@ bool SystemStateModel::loadZonesFromFile(const QString& filePath) {
                 zone.maxRange = static_cast<float>(zoneObj.value("maxRange").toDouble(0.0));
                 zone.name = zoneObj.value("name").toString("");
 
-                if (zone.id != -1) {
+                if (zone.id != -1) { 
                     m_currentStateData.areaZones.push_back(zone);
                 } else {
                     qWarning() << "Skipping invalid AreaZone entry during load (missing or invalid ID).";
@@ -1022,7 +1027,7 @@ bool SystemStateModel::loadZonesFromFile(const QString& filePath) {
     updateNextIdsAfterLoad();
 
     qDebug() << "Zones loaded successfully from" << filePath;
-    emit zonesChanged();
+    emit zonesChanged(); 
     return true;
 }
 
@@ -1069,14 +1074,14 @@ void SystemStateModel::onPlc21DataChanged(const Plc21PanelData &pData)
 void SystemStateModel::onPlc42DataChanged(const Plc42Data &pData)
 {
     SystemStateData newData = m_currentStateData;
-    newData.upperLimitSensorActive = pData.stationUpperSensor;
-    newData.lowerLimitSensorActive = pData.stationLowerSensor;
-    newData.emergencyStopActive = pData.emergencyStopActive;
+    newData.upperLimitSensorActive = pData.stationUpperSensor;        
+    newData.lowerLimitSensorActive = pData.stationLowerSensor;        
+    newData.emergencyStopActive = pData.emergencyStopActive;           
 
-    newData.stationAmmunitionLevel = pData.ammunitionLevel;
-    newData.stationInput1 = pData.stationInput1;
-    newData.stationInput2 = pData.stationInput2;
-    newData.stationInput3 = pData.stationInput3;
+    newData.stationAmmunitionLevel = pData.ammunitionLevel;        
+    newData.stationInput1 = pData.stationInput1;                 
+    newData.stationInput2 = pData.stationInput2;                 
+    newData.stationInput3 = pData.stationInput3;                 
 
     newData.solenoidMode     = pData.solenoidMode;
     newData.gimbalOpMode     = pData.gimbalOpMode;
@@ -1097,31 +1102,32 @@ void SystemStateModel::onServoAzDataChanged(const ServoData &azData) {
     m_currentStateData.gimbalAz = azData.position* 0.0016179775280;;
     m_currentStateData.azMotorTemp = azData.motorTemp;
     m_currentStateData.azDriverTemp = azData.driverTemp;
-    emit dataChanged(m_currentStateData);
-    emit gimbalPositionChanged(m_currentStateData.gimbalAz, m_currentStateData.gimbalEl);
+    emit dataChanged(m_currentStateData); 
+    emit gimbalPositionChanged(m_currentStateData.gimbalAz, m_currentStateData.gimbalEl); 
 }
 
 void SystemStateModel::onServoElDataChanged(const ServoData &elData) {
     m_currentStateData.gimbalEl = elData.position * (-0.0018);
     m_currentStateData.elMotorTemp = elData.motorTemp;
     m_currentStateData.elDriverTemp = elData.driverTemp;
-    emit dataChanged(m_currentStateData);
-    emit gimbalPositionChanged(m_currentStateData.gimbalAz, m_currentStateData.gimbalEl);
+    emit dataChanged(m_currentStateData); 
+    emit gimbalPositionChanged(m_currentStateData.gimbalAz, m_currentStateData.gimbalEl); 
 }
 
 void SystemStateModel::onServoActuatorDataChanged(const ServoActuatorData &actuatorData)
 {
     SystemStateData newData = m_currentStateData;
-    newData.actuatorPosition = actuatorData.position_mm;
+    newData.actuatorPosition = actuatorData.position_mm; 
     updateData(newData);
 }
 
 void SystemStateModel::onLrfDataChanged(const LrfData &lrfData)
 {
+    Q_UNUSED(lrfData);
     SystemStateData newData = m_currentStateData;
-    newData.lrfDistance = lrfData.lastDistance;
-    newData.lrfSystemStatus = lrfData.isFault;
-    newData.isOverTemperature = lrfData.isOverTemperature;
+    newData.lrfDistance = lrfData.lastDistance; 
+    newData.lrfSystemStatus = lrfData.isFault; 
+    newData.isOverTemperature = lrfData.isOverTemperature; 
     updateData(newData);
 }
 
@@ -1141,24 +1147,25 @@ void SystemStateModel::onDayCameraDataChanged(const DayCameraData &dayData)
 void SystemStateModel::onGyroDataChanged(const ImuData &gyroData)
 {
     SystemStateData newData = m_currentStateData;
-    newData.imuRollDeg = gyroData.imuRollDeg;
-    newData.imuPitchDeg = gyroData.imuPitchDeg;
-    newData.imuYawDeg = gyroData.imuYawDeg;
-    newData.temperature = gyroData.temperature;
-    newData.AccelX = gyroData.accelX_g;
-    newData.AccelY = gyroData.accelY_g;
-    newData.AccelZ = gyroData.accelZ_g;
-    newData.GyroX = gyroData.angRateX_dps;
-    newData.GyroY = gyroData.angRateY_dps;
-    newData.GyroZ = gyroData.angRateZ_dps;
+    newData.imuRollDeg = gyroData.imuRollDeg; 
+    newData.imuPitchDeg = gyroData.imuPitchDeg; 
+    newData.imuYawDeg = gyroData.imuYawDeg; 
+    newData.temperature = gyroData.temperature; 
+    newData.AccelX = gyroData.accelX_g; 
+    newData.AccelY = gyroData.accelY_g; 
+    newData.AccelZ = gyroData.accelZ_g; 
+    newData.GyroX = gyroData.angRateX_dps; 
+    newData.GyroY = gyroData.angRateY_dps; 
+    newData.GyroZ = gyroData.angRateZ_dps; 
 
      updateStationaryStatus(newData);
-
+ 
     updateData(newData);
 }
 
 void SystemStateModel::onLensDataChanged(const LensData &lensData)
 {
+    Q_UNUSED(lensData);
     SystemStateData newData = m_currentStateData;
      updateData(newData);
 }
@@ -1210,6 +1217,8 @@ void SystemStateModel::onJoystickAxisChanged(int axis, float normalizedValue)
 
 void SystemStateModel::onJoystickButtonChanged(int button, bool pressed)
 {
+    Q_UNUSED(button);
+    Q_UNUSED(pressed);
     SystemStateData newData = m_currentStateData;
 
     updateData(newData);
@@ -1220,7 +1229,7 @@ void SystemStateModel::onJoystickHatChanged(int hat, int direction)
     SystemStateData newData = m_currentStateData;
 
     if (hat == 0) {
-        newData.joystickHatDirection = direction;
+        newData.joystickHatDirection = direction; 
     }
 
     updateData(newData);
@@ -1254,21 +1263,21 @@ void SystemStateModel::updateNextIdsAfterLoad() {
 }
 
 void SystemStateModel::recalculateDerivedAimpointData() {
-    SystemStateData& data = m_currentStateData;
+    SystemStateData& data = m_currentStateData; 
 
     float activeHfov = data.activeCameraIsDay ? static_cast<float>(data.dayCurrentHFOV) : static_cast<float>(data.nightCurrentHFOV);
 
     QPointF newReticlePosPx = ReticleAimpointCalculator::calculateReticleImagePositionPx(
-        data.zeroingAzimuthOffset,
-        data.zeroingElevationOffset,
-        data.zeroingAppliedToBallistics,
-        data.leadAngleOffsetAz,
-        data.leadAngleOffsetEl,
-        data.leadAngleCompensationActive,
-        data.currentLeadAngleStatus,
-        activeHfov,
-        data.currentImageWidthPx,
-        data.currentImageHeightPx
+        data.zeroingAzimuthOffset,        
+        data.zeroingElevationOffset,      
+        data.zeroingAppliedToBallistics,  
+        data.leadAngleOffsetAz,           
+        data.leadAngleOffsetEl,           
+        data.leadAngleCompensationActive, 
+        data.currentLeadAngleStatus,      
+        activeHfov,                       
+        data.currentImageWidthPx,         
+        data.currentImageHeightPx         
     );
 
     bool reticlePosChanged = false;
@@ -1305,7 +1314,7 @@ void SystemStateModel::recalculateDerivedAimpointData() {
         qDebug() << "SystemStateModel: Recalculated Reticle. PosPx X:" << data.reticleAimpointImageX_px
                  << "Y:" << data.reticleAimpointImageY_px
                  << "LeadTxt:" << data.leadStatusText << "ZeroTxt:" << data.zeroingStatusText;
-        emit dataChanged(m_currentStateData);
+        emit dataChanged(m_currentStateData); 
     }
 }
 
@@ -1323,8 +1332,12 @@ void SystemStateModel::updateCameraOpticsAndActivity(int width, int height, floa
     }
 }
 
+void SystemStateModel::updateLeadAngleSystemState(bool leadActive, LeadAngleStatus leadStatus, float calcLeadAzDeg, float calcLeadElDeg)
+{
+}
+
 void SystemStateModel::updateCurrentScanName() {
-    SystemStateData& data = m_currentStateData;
+    SystemStateData& data = m_currentStateData; 
     QString newScanName = "";
 
     if (data.motionMode == MotionMode::AutoSectorScan) {
@@ -1338,7 +1351,7 @@ void SystemStateModel::updateCurrentScanName() {
     } else if (data.motionMode == MotionMode::TRPScan) {
         newScanName = QString("SCAN: TRP PAGE %1").arg(data.activeTRPLocationPage);
     } else {
-        newScanName = "";
+        newScanName = ""; 
     }
 
     if (data.currentScanName != newScanName) {
@@ -1349,12 +1362,12 @@ void SystemStateModel::updateCurrentScanName() {
 void SystemStateModel::processStateTransitions(const SystemStateData& oldData, SystemStateData& newData)
 {
     if (newData.emergencyStopActive && !oldData.emergencyStopActive) {
-        enterEmergencyStopMode();
-        return;
+        enterEmergencyStopMode(); 
+        return; 
     }
 
     if (!newData.emergencyStopActive && oldData.emergencyStopActive) {
-        enterIdleMode();
+        enterIdleMode(); 
         return;
     }
 
@@ -1375,13 +1388,13 @@ void SystemStateModel::processStateTransitions(const SystemStateData& oldData, S
 
 void SystemStateModel::enterEmergencyStopMode() {
     SystemStateData& data = m_currentStateData;
-    if (data.opMode == OperationalMode::EmergencyStop) return;
+    if (data.opMode == OperationalMode::EmergencyStop) return; 
 
     qCritical() << "[MODEL] ENTERING EMERGENCY STOP MODE!";
 
     data.opMode = OperationalMode::EmergencyStop;
     data.motionMode = MotionMode::Idle;
-    data.trackingActive = false;
+    data.trackingActive = false; 
     data.currentTrackingPhase = TrackingPhase::Off;
     data.trackerHasValidTarget = false;
     data.leadAngleCompensationActive = false;
@@ -1400,7 +1413,7 @@ void SystemStateModel::updateStationaryStatus(SystemStateData& data)
                                       data.AccelZ * data.AccelZ);
 
     double accelDelta = std::abs(accelMagnitude - data.previousAccelMagnitude);
-    data.previousAccelMagnitude = accelMagnitude;
+    data.previousAccelMagnitude = accelMagnitude; 
 
     if (gyroMagnitude < STATIONARY_GYRO_LIMIT && accelDelta < STATIONARY_ACCEL_DELTA_LIMIT)
     {
@@ -1416,6 +1429,6 @@ void SystemStateModel::updateStationaryStatus(SystemStateData& data)
     else
     {
         data.isVehicleStationary = false;
-        data.stationaryStartTime = QDateTime();
+        data.stationaryStartTime = QDateTime(); 
     }
 }
