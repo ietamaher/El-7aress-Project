@@ -1,4 +1,4 @@
-QT       += core gui serialbus serialport dbus modbus
+QT       += core gui serialbus serialport dbus
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
