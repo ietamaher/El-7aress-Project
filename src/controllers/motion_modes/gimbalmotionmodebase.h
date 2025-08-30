@@ -173,7 +173,9 @@ private:
     GyroLowPassFilter m_gyroYFilter;
     GyroLowPassFilter m_gyroZFilter;
 
-    // Gyro bias for Z-axis (azimuth)
+    // Gyro bias for all three axes
+    double m_gyroBiasX = 0.0;
+    double m_gyroBiasY = 0.0;
     double m_gyroBiasZ = 0.0;
 
     void calculateStabilizationCorrection(double currentAz_deg, double currentEl_deg,

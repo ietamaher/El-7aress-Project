@@ -2,6 +2,7 @@
 #include "../gimbalcontroller.h"
 #include "models/systemstatemodel.h"
 #include <QDebug>
+#include <QtGlobal>
 
 ManualMotionMode::ManualMotionMode(QObject* parent)
     : GimbalMotionModeBase(parent)
@@ -106,6 +107,12 @@ void ManualMotionMode::update(GimbalController* controller)
 double ManualMotionMode::processJoystickInput(double rawInput, double& filteredValue) {
     const double alpha = 0.4;
     const double exponent = 1.5;
+
+    // If joystick is released (input is near zero), reset the filter to prevent drift.
+    if (qFuzzyCompare(rawInput, 0.0)) {
+        filteredValue = 0.0;
+        return 0.0;
+    }
     
     filteredValue = (alpha * rawInput) + (1.0 - alpha) * filteredValue;
     

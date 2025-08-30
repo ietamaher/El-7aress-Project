@@ -1,4 +1,4 @@
-QT += core gui testlib serialbus serialport dbus widgets
+QT += core gui testlib serialbus serialport dbus widgets modbus
 
 # 2. Project Configuration
 CONFIG += console testcase
