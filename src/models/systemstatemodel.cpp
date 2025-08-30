@@ -1311,10 +1311,6 @@ void SystemStateModel::updateCameraOpticsAndActivity(int width, int height, floa
     }
 }
 
-void SystemStateModel::updateLeadAngleSystemState(bool leadActive, LeadAngleStatus leadStatus, float calcLeadAzDeg, float calcLeadElDeg)
-{
-}
-
 void SystemStateModel::updateCurrentScanName() {
     SystemStateData& data = m_currentStateData;
     QString newScanName = "";
