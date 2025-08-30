@@ -364,6 +364,18 @@ bool SystemStateModel::isPointInNoTraverseZone(float targetAz, float currentEl) 
     return false;
 }
 
+bool isAzimuthInRange(float targetAz, float startAz, float endAz) {
+    // Normalize all to 0-360
+    targetAz = std::fmod(targetAz + 360.0f, 360.0f);
+    startAz = std::fmod(startAz + 360.0f, 360.0f);
+    endAz = std::fmod(endAz + 360.0f, 360.0f);
+
+    if (startAz <= endAz) { // Normal case, e.g., 30 to 60
+        return targetAz >= startAz && targetAz <= endAz;
+    } else { // Wraps around 360, e.g., 350 to 10
+        return targetAz >= startAz || targetAz <= endAz;
+    }
+}
 // =================================================================
 // 5. BALLISTIC COMPENSATION
 // =================================================================
