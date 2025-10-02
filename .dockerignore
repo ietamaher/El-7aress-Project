@@ -1,0 +1,72 @@
+# Ignore Git files
+.git
+.gitignore
+
+# Ignore IDE-specific files
+.vscode/
+.idea/
+
+# Ignore build artifacts
+build/
+*.o
+*.pro.user
+
+# Ignore local files
+.DS_Store
+*.log
+*.tmp
+*.swp
+
+# Ignore documentation
+docs/
+
+# Ignore test reports
+/reports/
+
+# Ignore docker files
+Dockerfile
+.dockerignore
+
+# Python virtual environment
+venv/
+*.pyc
+__pycache__/
+
+# Node.js dependencies
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+
+# Ignore binary files that are not part of the final application
+*.zip
+*.tar.gz
+*.rar
+
+# Readme files
+README.md
+/docs/
+/wiki/
+/screenshots/
+
+# Configuration files that might contain sensitive information
+*.env
+*.ini
+
+# Cache directories
+.cache/
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Logs
+*.log
+
+# Test results
+/test-results/
+
+# Thumbs.db
+Thumbs.db
