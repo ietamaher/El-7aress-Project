@@ -37,11 +37,11 @@ public:
     void armWeapon(bool enable);
     void fireSingleShot();
 
-    void startFiring();
-    void stopFiring();
-    void unloadAmmo();
+    virtual void startFiring();
+    virtual void stopFiring();
+    virtual void unloadAmmo();
 
-    void updateFireControlSolution();
+    virtual void updateFireControlSolution();
 signals:
     void weaponArmed(bool armed);
     void weaponFired();

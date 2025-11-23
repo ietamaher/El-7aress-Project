@@ -1,6 +1,6 @@
 #include "autosectorscanmotionmode.h"
 #include "../gimbalcontroller.h" // For GimbalController
-#include "../../devices/servodriverdevice.h" // For ServoDriverDevice
+#include "devices/servodriverdevice.h" // For ServoDriverDevice
 #include <QDebug>
 #include <cmath>    // For std::abs
 #include <QtGlobal> // For qBound

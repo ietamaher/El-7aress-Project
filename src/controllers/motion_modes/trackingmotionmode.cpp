@@ -1,6 +1,6 @@
 #include "trackingmotionmode.h"
 #include "../gimbalcontroller.h"
-#include "../../models/systemstatemodel.h"
+#include "models/systemstatemodel.h"
 #include <QDebug>
 #include <QtGlobal>
 #include <cmath>

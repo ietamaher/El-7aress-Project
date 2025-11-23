@@ -1,6 +1,6 @@
 #include "radarslewmotionmode.h"
 #include "../gimbalcontroller.h" // For GimbalController and SystemStateData
-#include "../../models/systemstatemodel.h" // For SimpleRadarPlot
+#include "models/systemstatemodel.h" // For SimpleRadarPlot
 #include <QDebug>
 #include <cmath>
 #include <QtGlobal>

@@ -1,0 +1,128 @@
+name: Build and Test (qmake, Qt6)
+
+on:
+  pull_request:
+    branches: [ develop, main ]
+  push:
+    branches: [ develop, main ]
+    tags: ['v*']
+
+env:
+  PRO_FILE: AUTO
+  QT_VERSION: "6.6.0"
+
+jobs:
+  build-linux-qt6:
+    name: Build & Test (Linux x86_64, Qt6)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Cache APT packages
+        id: cache-apt-packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: ${{ runner.os }}-apt-${{ hashFiles('.github/packages.list') }}
+          restore-keys: |
+            ${{ runner.os }}-apt-
+
+      - name: Install System Dependencies (APT)
+        run: |
+          # Add NVIDIA VPI repository first
+          sudo apt-get install -y --no-install-recommends software-properties-common gnupg
+          sudo apt-key adv --fetch-key https://repo.download.nvidia.com/jetson/jetson-ota-public.asc
+          sudo add-apt-repository 'deb https://repo.download.nvidia.com/jetson/x86_64/jammy r36.4 main'
+          
+          if [[ ! "${{ steps.cache-apt-packages.outputs.cache-hit }}" == "true" ]]; then
+            sudo apt-get update -y
+          fi
+          
+          # Install from our CLEANED package list
+          grep -vE '^\s*#|^\s*$' .github/packages.list | sudo xargs apt-get install -y --no-install-recommends
+
+      # --- THIS IS THE KEY FIX ---
+      # We now list ALL required Qt modules here. The action will download and install them.
+      - name: Install Qt (Qt6) with additional modules
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: linux
+          target: desktop
+          arch: gcc_64
+          modules: 'qtserialbus qtserialport qtmultimedia'
+          cache: true
+
+      - name: Install additional Qt6 packages from apt (fallback)
+        run: |
+          # Install additional Qt6 packages that might not be in the action
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            qt6-base-dev qt6-base-dev-tools \
+            libqt6serialbus6-dev libqt6serialport6-dev \
+            libqt6multimedia6-dev libqt6multimediawidgets6-dev \
+            libqt6dbus6-dev || echo "Some Qt6 packages not available, continuing..."
+
+      # --- OPTIMIZATION 3: Simplify qmake path finding ---
+      # We use the direct output of the install-qt-action instead of a complex script.
+      - name: Add Qt bin to PATH and show qmake
+        shell: bash
+        run: |
+          echo "Found Qt path from action output: ${{ steps.install-qt.outputs.qt-path }}"
+          echo "${{ steps.install-qt.outputs.qt-path }}/bin" >> $GITHUB_PATH
+          echo "QT_ROOT_DIR=${{ steps.install-qt.outputs.qt-path }}" >> $GITHUB_ENV
+          echo "CMAKE_PREFIX_PATH=${{ steps.install-qt.outputs.qt-path }}" >> $GITHUB_ENV
+          qmake -v
+
+      - name: Locate .pro file (auto) and configure
+        shell: bash
+        run: |
+          cd $GITHUB_WORKSPACE
+          if [ "${PRO_FILE}" = "AUTO" ]; then
+            PRO_FILE_CAND=$(ls *.pro 2>/dev/null | head -n1 || true)
+            if [ -z "$PRO_FILE_CAND" ]; then
+              echo "No .pro file found at repo root." && exit 1
+            fi
+            PRO_FILE="$PRO_FILE_CAND"
+          fi
+          echo "Using PRO file: $PRO_FILE"
+
+          mkdir -p build && cd build
+          qmake "../${PRO_FILE}"
+
+      - name: Build
+        shell: bash
+        run: |
+          cd build
+          make -j$(nproc)
+          
+      - name: Install X11 runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb \
+            libxcb-xinerama0 libxcb-icccm4 libxcb-image0 libxcb-util1 \
+            libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-xkb1 libxkbcommon-x11-0
+
+      - name: Run unit/integration tests (if present)
+        shell: bash
+        run: |
+          cd build
+          export QT_DEBUG_PLUGINS=1
+          export QT_QPA_PLATFORM=offscreen   
+          if [ -x "./tests/tests" ]; then
+            echo "Running tests..."
+            xvfb-run ./tests/tests
+          else
+            echo "No tests/tests binary found — skipping test run."
+          fi
+
+      - name: Upload artifacts (on tag push only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v4
+        with:
+          name: myapp-binaries
+          path: |
+            build/src/*
+            build/tests/*

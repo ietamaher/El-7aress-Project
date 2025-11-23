@@ -197,7 +197,7 @@ bool CameraController::startTracking()
          m_stateModel->setTrackingStarted(true); // Tell the model tracking is requested/active
     }
 
-    updateStatus(QString("Tracking start requested on ") + (m_isDayCameraActive ? "Day" : "Night") + " camera.");
+    updateStatus(QString("Tracking start requested on %1 camera.").arg(m_isDayCameraActive ? "Day" : "Night"));
      // Don't emit stateChanged here, wait for the model's signal
 
     return true;
@@ -242,15 +242,14 @@ void CameraController::stopTracking()
         m_stateModel->setTrackingStarted(false); // Tell the model tracking is stopped
     }
 
-    //updateStatus("Tracking stop requested on " + (m_isDayCameraActive ? "Day" : "Night") + " camera.");
-    updateStatus(QString("Tracking start requested on ") + (m_isDayCameraActive ? "Day" : "Night") + " camera.");
+    updateStatus(QString("Tracking stop requested on %1 camera.").arg(m_isDayCameraActive ? "Day" : "Night"));
     // Don't emit stateChanged here, wait for the model's signal
 }
 /*
  *
  * /home/rapit/Desktop/tous_dossiers/docs/el7aress/controllers/cameracontroller.cpp:198: error: invalid operands of types ‘const char [29]’ and ‘const char*’ to binary ‘operator+’
-../../../Desktop/tous_dossiers/docs/el7aress/controllers/cameracontroller.cpp: In member function ‘bool CameraController::startTracking()’:
-../../../Desktop/tous_dossiers/docs/el7aress/controllers/cameracontroller.cpp:198:49: error: invalid operands of types ‘const char [29]’ and ‘const char*’ to binary ‘operator+’
+../../Desktop/tous_dossiers/docs/el7aress/controllers/cameracontroller.cpp: In member function ‘bool CameraController::startTracking()’:
+../../Desktop/tous_dossiers/docs/el7aress/controllers/cameracontroller.cpp:198:49: error: invalid operands of types ‘const char [29]’ and ‘const char*’ to binary ‘operator+’
   198 |     updateStatus("Tracking start requested on " + (m_isDayCameraActive ? "Day" : "Night") + " camera.");
       |                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ^ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
       |                  |                                                     |

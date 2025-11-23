@@ -1,7 +1,7 @@
 #include "gimbalmotionmodebase.h"
 #include "../gimbalcontroller.h"
-#include "../../devices/servodriverdevice.h"
-#include "../../models/systemstatemodel.h"
+#include "devices/servodriverdevice.h"
+#include "models/systemstatemodel.h"
 #include <QDebug>
 #include <algorithm>
 

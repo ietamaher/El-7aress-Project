@@ -384,14 +384,15 @@ bool CameraVideoStreamDevice::initializeGStreamer()
         gst_object_unref(m_pipeline); m_pipeline = nullptr; return false;
     }
     g_object_set(G_OBJECT(m_appSink), "emit-signals", TRUE, nullptr);
-    GstAppSinkCallbacks callbacks = {
+    /*GstAppSinkCallbacks callbacks = {
         nullptr,                                        // eos
         nullptr,                                        // new_preroll
         &CameraVideoStreamDevice::on_new_sample_from_sink, // new_sample
         nullptr,                                        // new_event (if exists)
         {nullptr, nullptr, nullptr}            // _gst_reserved array
-    };
-
+    };*/
+    GstAppSinkCallbacks callbacks = {};
+    callbacks.new_sample = &CameraVideoStreamDevice::on_new_sample_from_sink;
     //GstAppSinkCallbacks callbacks = {nullptr, nullptr, &CameraVideoStreamDevice::on_new_sample_from_sink, nullptr};
     gst_app_sink_set_callbacks(GST_APP_SINK(m_appSink), &callbacks, this, nullptr);
     m_gstLoop = g_main_loop_new(nullptr, FALSE);
