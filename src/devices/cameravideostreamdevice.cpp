@@ -340,7 +340,7 @@ bool CameraVideoStreamDevice::initializeGStreamer()
                               "appsink name=mysink emit-signals=true max-buffers=2 drop=true sync=false"
                               ).arg(m_deviceName).arg(m_sourceWidth).arg(m_sourceHeight);*/
 
-    QString pipelineStr = QString("v4l2src device=%1 do-timestamp=true ! "
+    /*QString pipelineStr = QString("v4l2src device=%1 do-timestamp=true ! "
         "video/x-raw,format=YUY2,width=%2,height=%3,framerate=30/1 ! "
         "videocrop top=%4 left= %6 bottom=%5  right=%7 ! "
         "videoscale ! "
@@ -353,9 +353,9 @@ bool CameraVideoStreamDevice::initializeGStreamer()
         .arg(m_cropTop)
         .arg(m_cropBottom)
         .arg(m_cropLeft)
-        .arg(m_cropRight);
+        .arg(m_cropRight);*/
 
-    /*QString pipelineStr = QString(
+      pipelineStr = QString(
                               "v4l2src device=%1 do-timestamp=true ! "
                               "image/jpeg,width=%2,height=%3,framerate=30/1 ! jpegdec ! video/x-raw ! "
                               "aspectratiocrop aspect-ratio=4/3 ! "
@@ -364,7 +364,7 @@ bool CameraVideoStreamDevice::initializeGStreamer()
                               "videoconvert ! video/x-raw,format=YUY2 ! " // Explicit conversion
                               "queue max-size-buffers=2 leaky=downstream ! "
                               "appsink name=mysink emit-signals=true max-buffers=2 drop=true sync=false"
-                              ).arg(m_deviceName).arg(m_sourceWidth).arg(m_sourceHeight);*/
+                              ).arg(m_deviceName).arg(m_sourceWidth).arg(m_sourceHeight);
 
     qInfo() << "Cam" << m_cameraIndex << " GStreamer Pipeline:" << pipelineStr;
     GError *error = nullptr;

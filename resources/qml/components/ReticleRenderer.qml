@@ -99,7 +99,7 @@ Item {
                     capStyle: ShapePath.RoundCap
 
                     // Center box
-                    PathRectangle { x: -25; y: -25; width: 50; height: 50 }
+                    //PathRectangle { x: -25; y: -25; width: 50; height: 50 }
 
                     // Crosshair lines with gaps
                     // Left line
@@ -123,7 +123,7 @@ Item {
                     fillColor: "transparent"
                     capStyle: ShapePath.RoundCap
 
-                    PathRectangle { x: -25; y: -25; width: 50; height: 50 }
+                    //PathRectangle { x: -25; y: -25; width: 50; height: 50 }
 
                     PathMove { x: -80; y: 0 }
                     PathLine { x: -27; y: 0 }

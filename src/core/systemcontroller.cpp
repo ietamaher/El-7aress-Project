@@ -60,7 +60,7 @@ SystemController::~SystemController()
     if (!azStopped) qWarning() << "Azimuth Servo Thread did not stop gracefully.";
     if (!elStopped) qWarning() << "Elevation Servo Thread did not stop gracefully.";
 
-    
+
 }
 
 void SystemController::initializeSystem()
@@ -69,10 +69,10 @@ void SystemController::initializeSystem()
     const int sourceWidth = 1280;
     const int sourceHeight = 720;
     const QString dayDevicePath = "/dev/video0";
-    const QString nightDevicePath = "/dev/video1";
+    const QString nightDevicePath = "/dev/video2";
 
-   m_dayCamControl = new DayCameraControlDevice(this);
-    m_gyroDevice = new ImuDevice("/dev/ttyUSB2" , 115200, 1, this);
+    m_dayCamControl = new DayCameraControlDevice(this);
+    m_gyroDevice = new ImuDevice(this);
     m_joystickDevice = new JoystickDevice(this);
     m_lensDevice   = new LensDevice(this);
     m_lrfDevice   = new LRFDevice(this);
@@ -84,7 +84,7 @@ void SystemController::initializeSystem()
     m_servoAzThread = new QThread(this);
     m_servoAzDevice = new ServoDriverDevice("az", "/dev/serial/by-id/usb-WCH.CN_USB_Quad_Serial_BC046FABCD-if04", 230400, 2, QSerialPort::NoParity, nullptr);
 
-    m_servoElThread = new QThread(this); 
+    m_servoElThread = new QThread(this);
     m_servoElDevice = new ServoDriverDevice("el", "/dev/serial/by-id/usb-WCH.CN_USB_Quad_Serial_BC046FABCD-if06", 230400, 1, QSerialPort::NoParity, nullptr);
 
     // 2) Create data models
@@ -160,7 +160,7 @@ void SystemController::initializeSystem()
 
     connect(m_joystickModel, &JoystickDataModel::buttonPressed,
             m_systemStateModel, &SystemStateModel::onJoystickButtonChanged);
-        
+
     connect(m_joystickModel, &JoystickDataModel::hatMoved,
             m_systemStateModel, &SystemStateModel::onJoystickHatChanged);
 
@@ -188,16 +188,16 @@ void SystemController::initializeSystem()
     connect(m_servoElModel, &ServoDriverDataModel::dataChanged,
             m_systemStateModel, &SystemStateModel::onServoElDataChanged);
 
-            if (m_systemStateModel && m_dayVideoProcessor) {
-                connect(m_systemStateModel, &SystemStateModel::dataChanged,
-                        m_dayVideoProcessor, &CameraVideoStreamDevice::onSystemStateChanged,
-                        Qt::QueuedConnection); // Queued connection is crucial
-            }
-             if (m_systemStateModel && m_nightVideoProcessor) {
-                connect(m_systemStateModel, &SystemStateModel::dataChanged,
-                        m_nightVideoProcessor, &CameraVideoStreamDevice::onSystemStateChanged,
-                        Qt::QueuedConnection); // Queued connection is crucial
-            }
+    if (m_systemStateModel && m_dayVideoProcessor) {
+        connect(m_systemStateModel, &SystemStateModel::dataChanged,
+                m_dayVideoProcessor, &CameraVideoStreamDevice::onSystemStateChanged,
+                Qt::QueuedConnection); // Queued connection is crucial
+    }
+    if (m_systemStateModel && m_nightVideoProcessor) {
+        connect(m_systemStateModel, &SystemStateModel::dataChanged,
+                m_nightVideoProcessor, &CameraVideoStreamDevice::onSystemStateChanged,
+                Qt::QueuedConnection); // Queued connection is crucial
+    }
     //stateMachine->initialize();
 
     // 6) Create controllers
@@ -210,14 +210,14 @@ void SystemController::initializeSystem()
                                               m_lensDevice,
                                               m_systemStateModel);
 
- 
+
 
     m_joystickController = new JoystickController(m_joystickModel,
-                                                     m_systemStateModel,
-                                                     m_gimbalController,
-                                                     m_cameraController,
-                                                     m_weaponController,
-                                                     this);
+                                                  m_systemStateModel,
+                                                  m_gimbalController,
+                                                  m_cameraController,
+                                                  m_weaponController,
+                                                  this);
 
 
 
@@ -228,13 +228,14 @@ void SystemController::initializeSystem()
 
     // 8) Start up devices if needed
     m_dayCamControl->openSerialPort("/dev/serial/by-id/usb-WCH.CN_USB_Quad_Serial_BCD9DCABCD-if00");  //   /dev/serial/by-id/usb-WCH.CN_USB_Quad_Serial_BCD9DCABCD-if00
-    m_gyroDevice->connectDevice();
     //m_lensDevice->openSerialPort("/dev/ttyUSB1");
-    m_lrfDevice->openSerialPort("/dev/ttyUSB1");
-    m_nightCamControl->openSerialPort("/dev/serial/by-id/usb-1a86_USB_Single_Serial_56D1123075-if00"); //  /dev/serial/by-id/usb-WCH.CN_USB_Quad_Serial_BCD9DCABCD-if02
+    m_gyroDevice->openSerialPort("/dev/serial/by-id/usb-WCH2");
+
+    m_lrfDevice->openSerialPort("/dev/serial/by-id/usb-WCH1");
+    m_nightCamControl->openSerialPort("/dev/serial/by-id/usb-WCH.CN_USB_Quad_Serial_BCD9DCABCD-if02"); //  /dev/serial/by-id/usb-WCH.CN_USB_Quad_Serial_BCD9DCABCD-if02
     m_plc21Device->connectDevice();
     m_plc42Device->connectDevice();
-    m_servoActuatorDevice->openSerialPort("/dev/ttyUSB0");
+    m_servoActuatorDevice->openSerialPort("/dev/serial/by-id/usb-WCH0");
     if (m_servoAzDevice) m_servoAzDevice->connectDevice();
     if (m_servoElDevice) m_servoElDevice->connectDevice();
 

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import "qrc:/qml/components"
+import "components"
 
 Rectangle {
     id: mainWindow

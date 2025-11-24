@@ -1,120 +1,210 @@
 #include "imudevice.h"
-#include <QModbusDataUnit>
 #include <QDebug>
-#include <QtEndian>
 #include <QMutexLocker>
+#include <QtEndian>
 
-ImuDevice::ImuDevice(const QString &device, int baudRate, int slaveId, QObject *parent)
-    // The SST810 protocol specifies NO parity. This is crucial.
-    : ModbusDeviceBase(device, baudRate, slaveId, QSerialPort::NoParity, parent)
+ImuDevice::ImuDevice(QObject *parent)
+    : BaseSerialDevice(parent),
+    m_pollTimer(new QTimer(this)),
+    m_gyroBiasTimer(new QTimer(this))
 {
-    connect(this, &ModbusDeviceBase::connectionStateChanged, this, &ImuDevice::handleConnectionChange);
-    
-    setPollInterval(50);
+    connect(m_pollTimer, &QTimer::timeout, this, &ImuDevice::onPollTimer);
+
+    m_gyroBiasTimer->setSingleShot(true);
+    m_gyroBiasTimer->setInterval(GYRO_BIAS_TIMEOUT_MS);
+    connect(m_gyroBiasTimer, &QTimer::timeout, this, &ImuDevice::onGyroBiasTimeout);
 }
 
-ImuDevice::~ImuDevice() {
-    disconnectDevice();
+ImuDevice::~ImuDevice()
+{
+    m_pollTimer->stop();
+    m_gyroBiasTimer->stop();
 }
 
-ImuData ImuDevice::getCurrentData() const {
+void ImuDevice::configureSerialPort()
+{
+    // 3DM-GX3-25 serial configuration
+    m_serialPort->setBaudRate(QSerialPort::Baud115200);
+    m_serialPort->setDataBits(QSerialPort::Data8);
+    m_serialPort->setParity(QSerialPort::NoParity);
+    m_serialPort->setStopBits(QSerialPort::OneStop);
+    m_serialPort->setFlowControl(QSerialPort::NoFlowControl);
+}
+
+void ImuDevice::processIncomingData()
+{
+    // Handle gyro bias response (19 bytes)
+    if (m_waitingForGyroBias && m_readBuffer.size() >= 19) {
+        logMessage("Gyro bias capture completed");
+        m_waitingForGyroBias = false;
+        m_gyroBiasTimer->stop();
+        m_readBuffer.remove(0, 19);  // Clear gyro bias response
+
+        // Start normal polling
+        m_pollTimer->start(m_pollIntervalMs);
+        return;
+    }
+
+    // Process normal data responses (0xCF = 31 bytes)
+    while (m_readBuffer.size() >= RESPONSE_SIZE)
+    {
+        QByteArray response = m_readBuffer.left(RESPONSE_SIZE);
+        m_readBuffer.remove(0, RESPONSE_SIZE);
+
+        parseResponse(response);
+    }
+}
+
+void ImuDevice::onConnectionEstablished()
+{
+    ImuData newData = m_currentData;
+    newData.isConnected = true;
+    updateImuData(newData);
+    logMessage("IMU device connection established.");
+
+    // Capture gyro bias first (device must be stationary!)
+    logMessage("**IMPORTANT**: Device must be stationary for gyro bias capture!");
+    captureGyroBias();
+}
+
+void ImuDevice::onConnectionLost()
+{
+    m_pollTimer->stop();
+    m_gyroBiasTimer->stop();
+    m_waitingForGyroBias = false;
+
+    ImuData newData = m_currentData;
+    newData.isConnected = false;
+    updateImuData(newData);
+    logMessage("IMU device connection lost.");
+}
+
+ImuData ImuDevice::currentData() const
+{
     QMutexLocker locker(&m_mutex);
     return m_currentData;
 }
 
-void ImuDevice::handleConnectionChange(bool connected) {
-    ImuData newData = getCurrentData();
-    newData.isConnected = connected;
-    updateImuData(newData);
-}
-
-void ImuDevice::readData() {
-    // Read all 18 registers (9 float values) in a single request.
-    QModbusDataUnit readUnit(QModbusDataUnit::InputRegisters,
-                             ALL_DATA_START_ADDRESS,
-                             ALL_DATA_REGISTER_COUNT);
-
-    if (auto *reply = sendReadRequest(readUnit)) {
-        connectReplyFinished(reply, [this](QModbusReply* r) { onReadReady(r); });
+void ImuDevice::setPollInterval(int intervalMs)
+{
+    m_pollIntervalMs = intervalMs;
+    if (m_pollTimer->isActive()) {
+        m_pollTimer->setInterval(intervalMs);
     }
 }
 
-void ImuDevice::onReadReady(QModbusReply *reply) {
-    stopTimeoutTimer();
-    if (!reply) return;
+// =================================
+// PROTOCOL IMPLEMENTATION
+// =================================
 
-    if (reply->error() != QModbusDevice::NoError) {
-        logError(QString("IMU Read Error: %1 (Code: 0x%2)")
-                     .arg(reply->errorString())
-                     .arg(reply->rawResult().exceptionCode(), 2, 16, QChar('0')));
-    } else {
-        parseModbusResponse(reply->result());
-    }
+void ImuDevice::captureGyroBias()
+{
+    logMessage("Capturing gyro bias (10 seconds)...");
+    m_waitingForGyroBias = true;
 
-    onDataReadComplete();
+    // Build 0xCD command: [0xCD, 0xC1, 0x29, TimeH, TimeL]
+    QByteArray cmd;
+    cmd.append(static_cast<char>(CMD_GYRO_BIAS));
+    cmd.append(static_cast<char>(0xC1));
+    cmd.append(static_cast<char>(0x29));
+
+    quint16 timeMs = 10000;  // 10 seconds
+    cmd.append(static_cast<char>((timeMs >> 8) & 0xFF));  // TimeH
+    cmd.append(static_cast<char>(timeMs & 0xFF));         // TimeL
+
+    sendData(cmd);
+    m_gyroBiasTimer->start();
 }
 
-void ImuDevice::parseModbusResponse(const QModbusDataUnit &dataUnit) {
-    if (dataUnit.valueCount() != ALL_DATA_REGISTER_COUNT) {
-        logError(QString("IMU: Incorrect register count. Expected %1, got %2.")
-                     .arg(ALL_DATA_REGISTER_COUNT).arg(dataUnit.valueCount()));
+void ImuDevice::onGyroBiasTimeout()
+{
+    if (m_waitingForGyroBias) {
+        logMessage("Gyro bias capture timed out - proceeding anyway");
+        m_waitingForGyroBias = false;
+        m_pollTimer->start(m_pollIntervalMs);
+    }
+}
+
+void ImuDevice::onPollTimer()
+{
+    sendReadRequest();
+}
+
+void ImuDevice::sendReadRequest()
+{
+    if (!isConnected()) {
         return;
     }
 
-    ImuData newData = getCurrentData();
+    // Send 0xCF command (single byte)
+    QByteArray cmd;
+    cmd.append(static_cast<char>(CMD_READ_DATA));
+    sendData(cmd);
+}
 
-    // Helper lambda to parse a 4-byte Big Endian float from two 16-bit registers.
-    auto parseFloat = [&](int index) -> float {
-        // Combine two 16-bit registers into one 32-bit value.
-        quint16 high = dataUnit.value(index);
-        quint16 low = dataUnit.value(index + 1);
-        quint32 combined = (static_cast<quint32>(high) << 16) | low;
+void ImuDevice::parseResponse(const QByteArray &response)
+{
+    if (response.size() < RESPONSE_SIZE) {
+        logError("IMU response too short");
+        return;
+    }
 
-        // Reinterpret the bits of the 32-bit integer as a float.
+    // Verify command echo (byte 0 should be 0xCF)
+    if (static_cast<quint8>(response.at(0)) != CMD_READ_DATA) {
+        logError("Invalid IMU response header");
+        return;
+    }
+
+    ImuData newData = currentData();
+
+    // Parse 0xCF response structure (31 bytes total)
+    // Bytes 1-4: Roll (float, big-endian)
+    // Bytes 5-8: Pitch (float, big-endian)
+    // Bytes 9-12: Yaw (float, big-endian)
+    // Bytes 13-16: Angular Rate X (float, big-endian)
+    // Bytes 17-20: Angular Rate Y (float, big-endian)
+    // Bytes 21-24: Angular Rate Z (float, big-endian)
+    // Additional data may follow...
+
+    auto parseFloat = [](const QByteArray &data, int offset) -> float {
+        if (offset + 4 > data.size()) return 0.0f;
+
+        quint32 raw = (static_cast<quint8>(data.at(offset)) << 24) |
+                      (static_cast<quint8>(data.at(offset + 1)) << 16) |
+                      (static_cast<quint8>(data.at(offset + 2)) << 8) |
+                      (static_cast<quint8>(data.at(offset + 3)));
+
         float value;
-        memcpy(&value, &combined, sizeof(value));
+        memcpy(&value, &raw, sizeof(value));
         return value;
     };
 
-    // --- Map registers to data structure fields ---
-    // Per the tech support email, ALL values are floats.
-    // The device uses the standard X-Y axis labels, but this may not map
-    // directly to aerospace imuRollDeg/imuPitchDeg conventions.
-    // X-Angle -> Pitch, Y-Angle -> Roll is a common mapping.
-    newData.imuPitchDeg         = parseFloat(0);  // 0x03E8 - 0x03E9: X-axis angle
-    newData.imuRollDeg          = parseFloat(2);  // 0x03EA - 0x03EB: Y-axis angle
-    newData.temperature   = parseFloat(4) / 10.0; // 0x03EC - 0x03ED: Temperature (with scaling)
+    newData.imuRollDeg = parseFloat(response, 1);
+    newData.imuPitchDeg = parseFloat(response, 5);
+    newData.imuYawDeg = parseFloat(response, 9);
 
-    newData.accelX_g      = parseFloat(6);  // 0x03EE - 0x03EF: X-axis accelerometer
-    newData.accelY_g      = parseFloat(8);  // 0x03F0 - 0x03F1: Y-axis accelerometer
-    newData.accelZ_g      = parseFloat(10); // 0x03F2 - 0x03F3: Z-axis accelerometer
+    newData.angRateX_dps = parseFloat(response, 13);
+    newData.angRateY_dps = parseFloat(response, 17);
+    newData.angRateZ_dps = parseFloat(response, 21);
 
-    newData.angRateX_dps  = parseFloat(12); // 0x03F4 - 0x03F5: X-axis gyroscope (Pitch Rate)
-    newData.angRateY_dps  = parseFloat(14); // 0x03F6 - 0x03F7: Y-axis gyroscope (Roll Rate)
-    newData.angRateZ_dps  = parseFloat(16); // 0x03F8 - 0x03F9: Z-axis gyroscope (Yaw Rate)
+    // Additional fields can be parsed if present in response
+    // For now, acceleration and temperature are not available in 0xCF response
 
     updateImuData(newData);
-
-    /*    qDebug().noquote().nospace()
-        << "[IMU] imuPitchDeg=" << newData.imuPitchDeg
-        << " imuRollDeg=" << newData.imuRollDeg
-        << " temp=" << newData.temperature
-        << " accel=(" << newData.accelX_g << ", "
-                      << newData.accelY_g << ", "
-                      << newData.accelZ_g << ")"
-        << " gyro=(" << newData.angRateX_dps << ", "
-                     << newData.angRateY_dps << ", "
-                     << newData.angRateZ_dps << ")";*/
 }
 
-void ImuDevice::onDataReadComplete() { /* No-op for single read request */ }
-void ImuDevice::onWriteComplete()    { /* No-op, read-only device */ }
+void ImuDevice::updateImuData(const ImuData &newData)
+{
+    bool dataChanged = false;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (newData != m_currentData) {
+            m_currentData = newData;
+            dataChanged = true;
+        }
+    }
 
-void ImuDevice::updateImuData(const ImuData &newData) {
-    QMutexLocker locker(&m_mutex);
-    if (newData != m_currentData) {
-        m_currentData = newData;
-        locker.unlock();
+    if (dataChanged) {
         emit imuDataChanged(m_currentData);
     }
 }
