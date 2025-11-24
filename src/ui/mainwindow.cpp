@@ -5,18 +5,38 @@
 #include "../controllers/cameracontroller.h"
 #include "../controllers/joystickcontroller.h"
 
-#include "../controllers/gimbalcontroller.h"
-#include "../controllers/weaponcontroller.h"
-#include "../controllers/cameracontroller.h"
-#include "../controllers/joystickcontroller.h"
+// Feature ViewModels
+#include "../features/models/osdviewmodel.h"
+#include "../features/models/menuviewmodel.h"
+#include "../features/models/zeroingviewmodel.h"
+#include "../features/models/windageviewmodel.h"
+#include "../features/models/environmentalviewmodel.h"
+#include "../features/models/zonedefinitionviewmodel.h"
+#include "../features/models/zonemapviewmodel.h"
+#include "../features/models/systemstatusviewmodel.h"
+#include "../features/models/aboutviewmodel.h"
+#include "../features/models/areazoneparameterviewmodel.h"
+#include "../features/models/sectorscanparameterviewmodel.h"
+#include "../features/models/trpparameterviewmodel.h"
+
+// Feature Controllers
+#include "../features/controllers/applicationcontroller.h"
+#include "../features/controllers/mainmenucontroller.h"
+#include "../features/controllers/reticlemenucontroller.h"
+#include "../features/controllers/colormenucontroller.h"
+#include "../features/controllers/osdcontroller.h"
+#include "../features/controllers/zeroingcontroller.h"
+#include "../features/controllers/windagecontroller.h"
+#include "../features/controllers/environmentalcontroller.h"
+#include "../features/controllers/zonedefinitioncontroller.h"
+#include "../features/controllers/systemstatuscontroller.h"
+#include "../features/controllers/aboutcontroller.h"
 
 #include <QDebug> // Example include, add others as needed
 #include <QMessageBox>
 #include <QDBusInterface>
 #include <QDBusReply>
-#include <QDebug>
 #include <QCoreApplication>
-#include <QMessageBox>    // For messages
 #include <QStatusBar>     // Use status bar
 
 
@@ -91,38 +111,137 @@ MainWindow::MainWindow(GimbalController *gimbal,
     ui->setupUi(this);
 
     // ========================================================================
-    // QML INTEGRATION SETUP
+    // FEATURE ARCHITECTURE: ViewModels + Controllers
     // ========================================================================
 
-    // Create OsdViewModel
+    qDebug() << "[MainWindow] Initializing feature architecture...";
+
+    // Step 1: Create all ViewModels
     m_osdViewModel = new OsdViewModel(this);
+    m_mainMenuViewModel = new MenuViewModel(this);
+    m_reticleMenuViewModel = new MenuViewModel(this);
+    m_colorMenuViewModel = new MenuViewModel(this);
+    m_zeroingViewModel = new ZeroingViewModel(this);
+    m_windageViewModel = new WindageViewModel(this);
+    m_environmentalViewModel = new EnvironmentalViewModel(this);
+    m_zoneDefinitionViewModel = new ZoneDefinitionViewModel(this);
+    m_zoneMapViewModel = new ZoneMapViewModel(this);
+    m_systemStatusViewModel = new SystemStatusViewModel(this);
+    m_aboutViewModel = new AboutViewModel(this);
+    m_areaZoneParameterViewModel = new AreaZoneParameterViewModel(this);
+    m_sectorScanParameterViewModel = new SectorScanParameterViewModel(this);
+    m_trpParameterViewModel = new TRPParameterViewModel(this);
 
-    // Create MenuViewModel
-    m_menuViewModel = new MenuViewModel(m_stateModel, this);
+    qDebug() << "[MainWindow] ViewModels created (14 total)";
 
-    // Create VideoImageProvider
+    // Step 2: Create all Controllers
+    m_osdController = new OsdController(this);
+    m_mainMenuController = new MainMenuController(this);
+    m_reticleMenuController = new ReticleMenuController(this);
+    m_colorMenuController = new ColorMenuController(this);
+    m_zeroingController = new ZeroingController(this);
+    m_windageController = new WindageController(this);
+    m_environmentalController = new EnvironmentalController(this);
+    m_zoneDefinitionController = new ZoneDefinitionController(this);
+    m_systemStatusController = new SystemStatusController(this);
+    m_aboutController = new AboutController(this);
+    m_applicationController = new ApplicationController(this);
+
+    qDebug() << "[MainWindow] Controllers created (11 total)";
+
+    // Step 3: Wire ViewModels to Controllers
+    m_osdController->setViewModel(m_osdViewModel);
+    m_osdController->setStateModel(m_stateModel);
+
+    m_mainMenuController->setViewModel(m_mainMenuViewModel);
+    m_mainMenuController->setStateModel(m_stateModel);
+
+    m_reticleMenuController->setViewModel(m_reticleMenuViewModel);
+    m_reticleMenuController->setStateModel(m_stateModel);
+
+    m_colorMenuController->setViewModel(m_colorMenuViewModel);
+    m_colorMenuController->setStateModel(m_stateModel);
+
+    m_zeroingController->setViewModel(m_zeroingViewModel);
+    m_zeroingController->setStateModel(m_stateModel);
+
+    m_windageController->setViewModel(m_windageViewModel);
+    m_windageController->setStateModel(m_stateModel);
+
+    m_environmentalController->setViewModel(m_environmentalViewModel);
+    m_environmentalController->setStateModel(m_stateModel);
+
+    m_zoneDefinitionController->setViewModel(m_zoneDefinitionViewModel);
+    m_zoneDefinitionController->setZoneMapViewModel(m_zoneMapViewModel);
+    m_zoneDefinitionController->setAreaZoneViewModel(m_areaZoneParameterViewModel);
+    m_zoneDefinitionController->setSectorScanViewModel(m_sectorScanParameterViewModel);
+    m_zoneDefinitionController->setTRPViewModel(m_trpParameterViewModel);
+    m_zoneDefinitionController->setStateModel(m_stateModel);
+
+    m_systemStatusController->setViewModel(m_systemStatusViewModel);
+    m_systemStatusController->setStateModel(m_stateModel);
+
+    m_aboutController->setViewModel(m_aboutViewModel);
+
+    qDebug() << "[MainWindow] ViewModels wired to Controllers";
+
+    // Step 4: Wire all controllers to ApplicationController
+    m_applicationController->setMainMenuController(m_mainMenuController);
+    m_applicationController->setReticleMenuController(m_reticleMenuController);
+    m_applicationController->setColorMenuController(m_colorMenuController);
+    m_applicationController->setZeroingController(m_zeroingController);
+    m_applicationController->setWindageController(m_windageController);
+    m_applicationController->setEnvironmentalController(m_environmentalController);
+    m_applicationController->setZoneDefinitionController(m_zoneDefinitionController);
+    m_applicationController->setSystemStatusController(m_systemStatusController);
+    m_applicationController->setAboutController(m_aboutController);
+    m_applicationController->setSystemStateModel(m_stateModel);
+
+    qDebug() << "[MainWindow] Controllers wired to ApplicationController";
+
+    // Step 5: Initialize all controllers
+    m_osdController->initialize();
+    m_mainMenuController->initialize();
+    m_reticleMenuController->initialize();
+    m_colorMenuController->initialize();
+    m_zeroingController->initialize();
+    m_windageController->initialize();
+    m_environmentalController->initialize();
+    m_zoneDefinitionController->initialize();
+    m_systemStatusController->initialize();
+    m_aboutController->initialize();
+    m_applicationController->initialize();
+
+    qDebug() << "[MainWindow] All controllers initialized";
+
+    // Step 6: Setup QML View
     m_videoImageProvider = new VideoImageProvider();
-
-    // Create QQuickView for QML rendering
     m_qmlView = new QQuickView();
     m_qmlView->setResizeMode(QQuickView::SizeRootObjectToView);
-
-    // Register image provider
     m_qmlView->engine()->addImageProvider(QLatin1String("video"), m_videoImageProvider);
 
-    // Expose C++ objects to QML
+    // Step 7: Expose all ViewModels to QML
     QQmlContext *context = m_qmlView->rootContext();
-    context->setContextProperty("osdViewModel", m_osdViewModel);
-    context->setContextProperty("menuViewModel", m_menuViewModel);
-    context->setContextProperty("appController", this); // For button handlers
+    context->setContextProperty("osdViewModelInstance", m_osdViewModel);
+    context->setContextProperty("mainMenuViewModel", m_mainMenuViewModel);
+    context->setContextProperty("reticleMenuViewModel", m_reticleMenuViewModel);
+    context->setContextProperty("colorMenuViewModel", m_colorMenuViewModel);
+    context->setContextProperty("zeroingViewModel", m_zeroingViewModel);
+    context->setContextProperty("windageViewModel", m_windageViewModel);
+    context->setContextProperty("environmentalViewModel", m_environmentalViewModel);
+    context->setContextProperty("zoneDefinitionViewModel", m_zoneDefinitionViewModel);
+    context->setContextProperty("zoneMapViewModel", m_zoneMapViewModel);
+    context->setContextProperty("systemStatusViewModel", m_systemStatusViewModel);
+    context->setContextProperty("aboutViewModel", m_aboutViewModel);
+    context->setContextProperty("areaZoneParameterViewModel", m_areaZoneParameterViewModel);
+    context->setContextProperty("sectorScanParameterViewModel", m_sectorScanParameterViewModel);
+    context->setContextProperty("trpParameterViewModel", m_trpParameterViewModel);
 
-    // Connect MenuViewModel signals for hardware actions
-    connect(m_menuViewModel, &MenuViewModel::requestIncreaseBrightness,
-            this, &MainWindow::increaseBrightness);
-    connect(m_menuViewModel, &MenuViewModel::requestDecreaseBrightness,
-            this, &MainWindow::decreaseBrightness);
-    connect(m_menuViewModel, &MenuViewModel::requestClearAlarms,
-            this, &MainWindow::handleClearAlarmsRequest);
+    // Step 8: Expose ApplicationController as appController (for button handlers)
+    context->setContextProperty("appController", m_applicationController);
+
+    qDebug() << "[MainWindow] All ViewModels exposed to QML context";
+
 
     // Load main QML file
     m_qmlView->setSource(QUrl("qrc:/qml/main.qml"));
@@ -652,71 +771,39 @@ void MainWindow::onModalWidgetClosed() {
 //m_cameraCtrl->setActiveCamera(m_isDayCameraActive);
 void MainWindow::onUpSwChanged()
 {
-    // PRIORITY 1: QML Menu System (via MenuViewModel)
-    if (m_menuViewModel && m_menuViewModel->currentMenuState() != MenuViewModel::Idle) {
-        m_menuViewModel->moveUp();
-        return;
+    // Delegate to ApplicationController (handles all menu/overlay navigation)
+    if (m_applicationController) {
+        m_applicationController->onUpButtonPressed();
     }
 
-    // PRIORITY 2: Legacy Qt Widget menus (fallback for complex widgets not yet ported)
-    if (m_zoneDefinitionControllerWidget && m_zoneDefinitionControllerWidget->isVisible()) {
-        m_zoneDefinitionControllerWidget->handleUpNavigation();
-    }
-    else if (m_zeroingWidget && m_zeroingWidget->isVisible()) {
-        m_zeroingWidget->handleUpAction();
-    } else if (m_windageWidget && m_windageWidget->isVisible()) {
-        m_windageWidget->handleUpAction();
-    } else if (m_radarWidget && m_radarWidget->isVisible()) {
+    // Legacy Qt Widget fallback (for widgets not yet integrated with ApplicationController)
+    if (m_radarWidget && m_radarWidget->isVisible()) {
         m_radarWidget->moveSelectionUp();
     }
 }
 
 void MainWindow::onDownSwChanged()
 {
-    // PRIORITY 1: QML Menu System (via MenuViewModel)
-    if (m_menuViewModel && m_menuViewModel->currentMenuState() != MenuViewModel::Idle) {
-        m_menuViewModel->moveDown();
-        return;
+    // Delegate to ApplicationController (handles all menu/overlay navigation)
+    if (m_applicationController) {
+        m_applicationController->onDownButtonPressed();
     }
 
-    // PRIORITY 2: Legacy Qt Widget menus (fallback for complex widgets not yet ported)
-    if (m_zoneDefinitionControllerWidget && m_zoneDefinitionControllerWidget->isVisible()) {
-        m_zoneDefinitionControllerWidget->handleDownNavigation();
-    }
-    else if (m_zeroingWidget && m_zeroingWidget->isVisible()) {
-        m_zeroingWidget->handleDownAction();
-    } else if (m_windageWidget && m_windageWidget->isVisible()) {
-        m_windageWidget->handleDownAction();
-    } else if (m_radarWidget && m_radarWidget->isVisible()) {
+    // Legacy Qt Widget fallback (for widgets not yet integrated with ApplicationController)
+    if (m_radarWidget && m_radarWidget->isVisible()) {
         m_radarWidget->moveSelectionDown();
     }
 }
 
 void MainWindow::onMenuValSwChanged()
 {
-    // PRIORITY 1: QML Menu System (via MenuViewModel)
-    if (m_menuViewModel) {
-        // If in idle mode and MENU button pressed, show main menu
-        if (m_menuViewModel->currentMenuState() == MenuViewModel::Idle &&
-            m_stateModel->data().opMode == OperationalMode::Idle) {
-            m_menuViewModel->showMainMenu();
-            return;
-        }
-        // If already in a menu, select current item
-        else if (m_menuViewModel->currentMenuState() != MenuViewModel::Idle) {
-            m_menuViewModel->selectCurrent();
-            return;
-        }
+    // Delegate to ApplicationController (handles all menu/overlay navigation)
+    if (m_applicationController) {
+        m_applicationController->onMenuValButtonPressed();
     }
 
-    // PRIORITY 2: Legacy Qt Widget menus (fallback for complex widgets not yet ported)
-    if (m_zoneDefinitionControllerWidget && m_zoneDefinitionControllerWidget->isVisible()) {
-        m_zoneDefinitionControllerWidget->handleSelectAction();
-    } else if (m_zeroingWidget && m_zeroingWidget->isVisible()) {
-        m_zeroingWidget->handleSelectAction();
-    } else if (m_windageWidget && m_windageWidget->isVisible()) {
-        m_windageWidget->handleSelectAction();
-    } else if (m_radarWidget && m_radarWidget->isVisible()) {
+    // Legacy Qt Widget fallback (for widgets not yet integrated with ApplicationController)
+    if (m_radarWidget && m_radarWidget->isVisible()) {
         m_radarWidget->selectCurrentItem();
     }
 }
