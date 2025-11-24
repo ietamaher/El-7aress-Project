@@ -1,12 +1,47 @@
+/**
+ * @file SystemStateModel.cpp
+ * @brief Implementation of SystemStateModel class
+ * 
+ * This file contains ALL method implementations for the SystemStateModel class,
+ * organized to match the EXACT order in SystemStateModel.h for easy navigation.
+ * 
+ * ORGANIZATION (matches header file 1:1):
+ * 1. Constructor
+ * 2. Core System Data Management
+ * 3. User Interface Controls
+ * 4. Weapon Control and Tracking
+ * 5. Fire Control and Safety Zones
+ * 6. Lead Angle Compensation
+ * 7. Area Zone Management
+ * 8. Auto Sector Scan Management
+ * 9. Target Reference Point (TRP) Management
+ * 10. Configuration File Management
+ * 11. Weapon Zeroing Procedures
+ * 12. Windage Compensation
+ * 13. Tracking System Control
+ * 14. State Transition Methods
+ * 15. Radar Interface
+ * 16. Hardware Interface Slots
+ * 17. Sensor Data Slots
+ * 18. Joystick Control Slots
+ * 19. System Mode Control Slots
+ * 20. Utility Methods
+ * 21. Private Helper Methods
+ * 
+ * @author MB
+ * @date 19 Juin 2025
+ * @version 1.1 - Fully reorganized to match header structure
+ */
+
 #include "systemstatemodel.h"
 #include <QDebug>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QCoreApplication>  // For applicationDirPath()
 #include <algorithm> // For std::find_if, std::sort (if needed)
 #include <set>       // For getting unique page numbers
-
 
 SystemStateModel::SystemStateModel(QObject *parent)
     : QObject(parent),
@@ -17,8 +52,48 @@ SystemStateModel::SystemStateModel(QObject *parent)
     // Initialize m_currentStateData with defaults if needed
     clearZeroing(); // Zero is lost on power down
     clearWindage(); // Windage is zero on startup
-    // Connect signals from sub-models to slots here (as was likely intended)
-    loadZonesFromFile("zones.json"); // Load initial zones from file if exists
+
+    // ✅ CRITICAL FIX: Calculate initial reticle and CCIP positions
+    // Without this, SystemStateData has default initialization values which
+    // may be incorrect if image dimensions or FOV change after initialization.
+    // This ensures CCIP and acquisition box have correct positions from startup.
+    recalculateDerivedAimpointData();
+    qDebug() << "✓ SystemStateModel initialized - reticle and CCIP positions calculated"
+             << "at (" << m_currentStateData.reticleAimpointImageX_px << ","
+             << m_currentStateData.reticleAimpointImageY_px << ")";
+
+    // ========================================================================
+    // ZONES.JSON LOADING - FIRST-RUN TEMPLATE COPY
+    // If zones.json doesn't exist in filesystem, copy from embedded resource
+    // ========================================================================
+    QString zonesPath = QCoreApplication::applicationDirPath() + "/config/zones.json";
+
+    // First-run: copy template from embedded resource if file doesn't exist
+    if (!QFile::exists(zonesPath)) {
+        qInfo() << "zones.json not found, creating from embedded template";
+
+        // Copy from resource to filesystem
+        if (QFile::copy(":/config/zones.json", zonesPath)) {
+            // Make the file writable (resource files are read-only by default)
+            QFile::setPermissions(zonesPath, QFile::WriteOwner | QFile::ReadOwner | QFile::ReadGroup);
+            qInfo() << "Created default zones.json at:" << zonesPath;
+        } else {
+            qWarning() << "Failed to copy zones.json template from resources";
+            qWarning() << "Starting with empty zones - operator can define zones manually";
+            // Don't fail - operator can create zones during operation
+        }
+    }
+
+    // Load zones from filesystem (or start with empty zones if copy failed)
+    if (QFile::exists(zonesPath)) {
+        if (loadZonesFromFile(zonesPath)) {
+            qInfo() << "Loaded zones.json from:" << zonesPath;
+        } else {
+            qWarning() << "Failed to load zones.json - starting with empty zones";
+        }
+    } else {
+        qInfo() << "No zones file available - starting with empty zones";
+    }
 
     // --- POPULATE DUMMY RADAR DATA FOR TESTING ---
     QVector<SimpleRadarPlot> dummyPlots;
@@ -44,7 +119,8 @@ SystemStateModel::SystemStateModel(QObject *parent)
 void SystemStateModel::updateData(const SystemStateData &newState) {
 
     SystemStateData oldData = m_currentStateData;
-
+   // static int count = 0;
+    //if (++count % 100 == 0) qDebug() << "dataChanged signals:" << count;
     // Check if anything has actually changed to avoid unnecessary signals/updates
     if (oldData == newState) { // Assumes you have operator== for SystemStateData
         return;
@@ -65,17 +141,18 @@ void SystemStateModel::updateData(const SystemStateData &newState) {
     }
 }
 
-// --- UI Related Setters Implementation (Keep existing logic, ensure signals are emitted) ---
+// --- UI Related Setters Implementation  ---
 void SystemStateModel::setColorStyle(const QColor &style)
 {
+    qDebug() << "SystemStateModel::setColorStyle() called with:" << style;   
 
     SystemStateData newData = m_currentStateData;
     newData.colorStyle = style;
     newData.osdColorStyle = ColorUtils::fromQColor(style);
 
+    emit colorStyleChanged(style);   
+    qDebug() << "SystemStateModel: colorStyleChanged signal emitted";   
 
-    // 2) Emit a dedicated signal
-    emit colorStyleChanged(style);
     updateData(newData);
 }
 
@@ -95,7 +172,39 @@ void SystemStateModel::setDownTrack(bool pressed) { if(m_currentStateData.downTr
 void SystemStateModel::setDownSw(bool pressed) { if(m_currentStateData.menuDown != pressed) { m_currentStateData.menuDown = pressed; emit dataChanged(m_currentStateData); } }
 void SystemStateModel::setUpTrack(bool pressed) { if(m_currentStateData.upTrack != pressed) { m_currentStateData.upTrack = pressed; emit dataChanged(m_currentStateData); } }
 void SystemStateModel::setUpSw(bool pressed) { if(m_currentStateData.menuUp != pressed) { m_currentStateData.menuUp = pressed; emit dataChanged(m_currentStateData); } }
-void SystemStateModel::setActiveCameraIsDay(bool pressed) { if(m_currentStateData.activeCameraIsDay != pressed) { m_currentStateData.activeCameraIsDay = pressed; emit dataChanged(m_currentStateData); } }
+
+void SystemStateModel::setActiveCameraIsDay(bool isDay) {
+    // ========================================================================
+    // UC5: Camera Switch During Tracking
+    // ========================================================================
+    // When switching between day/night cameras, FOV changes (different optics)
+    // Reticle pixel position must recalculate for new camera's FOV
+    // ========================================================================
+    if(m_currentStateData.activeCameraIsDay != isDay) {
+        m_currentStateData.activeCameraIsDay = isDay;
+        qDebug() << "✓ [FIX UC5] Active camera switched to" << (isDay ? "DAY" : "NIGHT")
+                 << "- Recalculating reticle for new camera FOV";
+        recalculateDerivedAimpointData();  // ← FIX: Trigger reticle recalc on camera switch
+        emit dataChanged(m_currentStateData);
+    }
+}
+
+void SystemStateModel::setDetectionEnabled(bool enabled)
+{
+    //QMutexLocker locker(&m_mutex);
+
+    // Safety check: Only allow enabling detection if day camera is active
+    if (enabled && !m_currentStateData.activeCameraIsDay) {
+        qWarning() << "SystemStateModel: Cannot enable detection - Night camera is active!";
+        return;
+    }
+
+    if (m_currentStateData.detectionEnabled != enabled) {
+        m_currentStateData.detectionEnabled = enabled;
+        emit dataChanged(m_currentStateData);
+        qInfo() << "SystemStateModel: Detection" << (enabled ? "ENABLED" : "DISABLED");
+    }
+}
 
 // --- Area Zone Methods Implementation ---
 const std::vector<AreaZone>& SystemStateModel::getAreaZones() const {
@@ -464,40 +573,80 @@ void SystemStateModel::updateNextIdsAfterLoad() {
 
 
 void SystemStateModel::onServoAzDataChanged(const ServoData &azData) {
-    // Assuming ServoData contains azimuth position
-    //if (!qFuzzyCompare(m_currentStateData.gimbalAz, azData.position * 0.0016179775280)) { // Check if position actually changed
+    // ✅ MEMORY LEAK FIX: Only emit if position actually changed
+    // Without this check: 20 Hz constant emission even when stationary
+    // With this check: Only emit when servo actually moves (saves ~100-400 KB/sec)
+    if (!qFuzzyCompare(m_currentStateData.gimbalAz, azData.position * 0.0016179775280)) {
         m_currentStateData.gimbalAz = azData.position* 0.0016179775280;;
         m_currentStateData.azMotorTemp = azData.motorTemp;
         m_currentStateData.azDriverTemp = azData.driverTemp;
-        // Potentially update other related fields from azData
+        m_currentStateData.azServoConnected = azData.isConnected;
+        m_currentStateData.azRpm = azData.rpm;
+        m_currentStateData.azTorque = azData.torque;
+        m_currentStateData.azFault = azData.fault;
+
         emit dataChanged(m_currentStateData); // Emit general data change
         emit gimbalPositionChanged(m_currentStateData.gimbalAz, m_currentStateData.gimbalEl); // Emit specific gimbal change
-    //}
+    }
 }
 
 void SystemStateModel::onServoElDataChanged(const ServoData &elData) {
-    // Assuming ServoData contains elevation position
-    // if (!qFuzzyCompare(m_currentStateData.gimbalEl, elData.position * (-0.0018))) { // Check if position actually changed
+    // ✅ MEMORY LEAK FIX: Only emit if position actually changed
+    // Without this check: 20 Hz constant emission even when stationary
+    // With this check: Only emit when servo actually moves (saves ~100-400 KB/sec)
+    if (!qFuzzyCompare(m_currentStateData.gimbalEl, elData.position * (-0.0018))) {
         m_currentStateData.gimbalEl = elData.position * (-0.0018);
         m_currentStateData.elMotorTemp = elData.motorTemp;
         m_currentStateData.elDriverTemp = elData.driverTemp;
-        // Potentially update other related fields from elData
+        m_currentStateData.elServoConnected = elData.isConnected;
+        m_currentStateData.elRpm = elData.rpm;
+        m_currentStateData.elTorque = elData.torque;
+        m_currentStateData.elFault = elData.fault;
+
         emit dataChanged(m_currentStateData); // Emit general data change
         emit gimbalPositionChanged(m_currentStateData.gimbalAz, m_currentStateData.gimbalEl); // Emit specific gimbal change
-    //}
+    }
 }
 
 void SystemStateModel::onDayCameraDataChanged(const DayCameraData &dayData)
 {
+    // ========================================================================
+    // UC1: Zoom During Zeroed Operation
+    // UC4: Zoom During Active Tracking
+    // ========================================================================
+    // When day camera FOV changes (zoom in/out), reticle pixel position must
+    // be recalculated to maintain correct angular offset on screen.
+    // ========================================================================
+
+    bool fovChanged = !qFuzzyCompare(
+        static_cast<float>(m_currentStateData.dayCurrentHFOV),
+        static_cast<float>(dayData.currentHFOV)
+    );
+
     SystemStateData newData = m_currentStateData;
 
     newData.dayZoomPosition = dayData.zoomPosition;
     newData.dayCurrentHFOV = dayData.currentHFOV;
+    newData.dayCurrentVFOV = dayData.currentVFOV;  // 16:9 aspect ratio (VFOV = HFOV × 9/16)
     newData.dayCameraConnected = dayData.isConnected;
     newData.dayCameraError = dayData.errorState;
     newData.dayCameraStatus = dayData.cameraStatus;
-    updateData(newData);
+    newData.dayAutofocusEnabled = dayData.autofocusEnabled;
+    newData.dayFocusPosition = dayData.focusPosition;
 
+    // ⭐ CRITICAL FIX: Recalculate reticle position when FOV changes
+    // This ensures Pixels-Per-Degree (PPD) scaling is correct for new zoom level
+    if (fovChanged && m_currentStateData.activeCameraIsDay) {
+        qDebug() << "✓ [FIX UC1/UC4] Day camera FOV changed from"
+                 << m_currentStateData.dayCurrentHFOV << "to" << dayData.currentHFOV
+                 << "- Recalculating reticle aimpoint";
+
+        m_currentStateData = newData;  // Update state first so recalc uses new FOV
+        recalculateDerivedAimpointData();  // ← FIX: Trigger reticle recalculation
+        emit dataChanged(m_currentStateData);
+    } else {
+        updateData(newData);
+    }
 }
 
 // Mode setting slots
@@ -506,7 +655,7 @@ void SystemStateModel::setMotionMode(MotionMode newMode) {
         m_currentStateData.previousMotionMode = m_currentStateData.motionMode;
         if (m_currentStateData.motionMode == MotionMode::AutoSectorScan || m_currentStateData.motionMode == MotionMode::TRPScan) {
         // If exiting a scan mode
-            m_currentStateData.currentScanName = ""; // Clear it
+            m_currentStateData.currentScanName = "";  // Clear it
         }
         m_currentStateData.motionMode = newMode;
 
@@ -524,16 +673,17 @@ void SystemStateModel::setTrackingStarted(bool start) { if(m_currentStateData.st
 void SystemStateModel::onGyroDataChanged(const ImuData &gyroData)
 {
     SystemStateData newData = m_currentStateData;
-    newData.imuRollDeg = gyroData.imuRollDeg; // or convert to float
-    newData.imuPitchDeg = gyroData.imuPitchDeg; // or convert to float
-    newData.imuYawDeg = gyroData.imuYawDeg; // or convert to float
-    newData.temperature = gyroData.temperature; // Assuming this is a float
-    newData.AccelX = gyroData.accelX_g; // Assuming this is an int
-    newData.AccelY = gyroData.accelY_g; // Assuming this is an int
-    newData.AccelZ = gyroData.accelZ_g; // Assuming this is an int
-    newData.GyroX = gyroData.angRateX_dps; // Assuming this is an int
-    newData.GyroY = gyroData.angRateY_dps; // Assuming this is an int
-    newData.GyroZ = gyroData.angRateZ_dps; // Assuming this is an int
+    newData.imuConnected = gyroData.isConnected;
+    newData.imuRollDeg = gyroData.rollDeg; // ImuData uses rollDeg, not imuRollDeg
+    newData.imuPitchDeg = gyroData.pitchDeg; // ImuData uses pitchDeg, not imuPitchDeg
+    newData.imuYawDeg = gyroData.yawDeg; // ImuData uses yawDeg, not imuYawDeg
+    newData.imuTemp = gyroData.temperature;
+    newData.AccelX = gyroData.accelX_g;
+    newData.AccelY = gyroData.accelY_g;
+    newData.AccelZ = gyroData.accelZ_g;
+    newData.GyroX = gyroData.angRateX_dps;
+    newData.GyroY = gyroData.angRateY_dps;
+    newData.GyroZ = gyroData.angRateZ_dps;
 
     // Update stationary status
      updateStationaryStatus(newData);
@@ -619,32 +769,81 @@ void SystemStateModel::onJoystickHatChanged(int hat, int direction)
     //LOG_TS_ELAPSED("SystemStateModel", "Processed model data");
 }
 
-void SystemStateModel::onLensDataChanged(const LensData &lensData)
+void SystemStateModel::onJoystickDataChanged(std::shared_ptr<const JoystickData> joyData)
 {
+    if (!joyData) return;
+
     SystemStateData newData = m_currentStateData;
-     updateData(newData);
+    //newData.joystickConnected = joyData->isConnected;
+
+    updateData(newData);
 }
+
 
 void SystemStateModel::onLrfDataChanged(const LrfData &lrfData)
 {
     SystemStateData newData = m_currentStateData;
-    newData.lrfDistance = lrfData.lastDistance; // or convert to float
-    newData.lrfSystemStatus = lrfData.isFault; // or convert to float
-    newData.isOverTemperature = lrfData.isOverTemperature; // Assuming this is a boolean flag
+    newData.lrfConnected = lrfData.isConnected;
+    newData.lrfDistance = lrfData.lastDistance;
+    newData.lrfTemp = lrfData.temperature;
+    newData.lrfLaserCount = lrfData.laserCount;
+    newData.lrfSystemStatus = lrfData.rawStatusByte;
+    newData.lrfFault = lrfData.isFault;
+    newData.lrfNoEcho = lrfData.noEcho;
+    newData.lrfLaserNotOut = lrfData.laserNotOut;
+    newData.lrfOverTemp = lrfData.isOverTemperature;
+    newData.isOverTemperature = lrfData.isOverTemperature;
+
+    // Update ballistics target range when LRF measurement is valid
+    if (lrfData.isLastRangingValid && lrfData.lastDistance > 0) {
+        newData.currentTargetRange = static_cast<float>(lrfData.lastDistance);
+    }
+
     updateData(newData);
 }
 
 void SystemStateModel::onNightCameraDataChanged(const NightCameraData &nightData)
 {
+    // ========================================================================
+    // UC1: Zoom During Zeroed Operation
+    // UC4: Zoom During Active Tracking
+    // UC5: Camera Switch During Tracking
+    // ========================================================================
+    // When night camera FOV changes (digital zoom), reticle pixel position
+    // must be recalculated to maintain correct angular offset on screen.
+    // ========================================================================
+
+    bool fovChanged = !qFuzzyCompare(
+        static_cast<float>(m_currentStateData.nightCurrentHFOV),
+        static_cast<float>(nightData.currentHFOV)
+    );
+
     SystemStateData newData = m_currentStateData;
 
     newData.nightZoomPosition = nightData.digitalZoomLevel;
     newData.nightCurrentHFOV = nightData.currentHFOV;
+    newData.nightCurrentVFOV = nightData.currentVFOV;  // Update VFOV for non-square sensor
     newData.nightCameraConnected = nightData.isConnected;
-    newData.nightCameraError = nightData.errorState;
+    newData.nightCameraError = 0; // status never defined in datasheet (nightData.errorState != 0x00);  // Convert errorState byte to boolean
     newData.nightCameraStatus = nightData.cameraStatus;
-    updateData(newData);
+    newData.nightDigitalZoomLevel = nightData.digitalZoomLevel;
+    newData.nightFfcInProgress = nightData.ffcInProgress;
+    newData.nightVideoMode = nightData.videoMode;
+    newData.nightFpaTemperature = nightData.fpaTemperature;
 
+    // ⭐ CRITICAL FIX: Recalculate reticle position when FOV changes
+    // This ensures Pixels-Per-Degree (PPD) scaling is correct for new zoom level
+    if (fovChanged && !m_currentStateData.activeCameraIsDay) {
+        qDebug() << "✓ [FIX UC1/UC4/UC5] Night camera FOV changed from"
+                 << m_currentStateData.nightCurrentHFOV << "to" << nightData.currentHFOV
+                 << "- Recalculating reticle aimpoint";
+
+        m_currentStateData = newData;  // Update state first so recalc uses new FOV
+        recalculateDerivedAimpointData();  // ← FIX: Trigger reticle recalculation
+        emit dataChanged(m_currentStateData);
+    } else {
+        updateData(newData);
+    }
 }
 
 void SystemStateModel::onPlc21DataChanged(const Plc21PanelData &pData)
@@ -655,68 +854,120 @@ void SystemStateModel::onPlc21DataChanged(const Plc21PanelData &pData)
     newData.menuDown = pData.menuDownSW;
     newData.menuVal = pData.menuValSw;
 
-    newData.stationEnabled =  pData.enableStationSW;
+    newData.stationEnabled = pData.enableStationSW;
     newData.gunArmed = pData.armGunSW;
-    newData.gotoHomePosition = pData.homePositionSW;
+    newData.gotoHomePosition = pData.homePositionSW;  // ✓ Home button
     newData.ammoLoaded = pData.loadAmmunitionSW;
 
     newData.authorized = pData.authorizeSw;
     newData.enableStabilization = pData.enableStabilizationSW;
-    newData.activeCameraIsDay = pData.switchCameraSW;
+    
+    // ⭐ CRITICAL: authorizeSw FALSE = Emergency Stop!
+    newData.emergencyStopActive = !pData.authorizeSw;
 
     switch (pData.fireMode) {
     case 0:
-        newData.fireMode =FireMode::SingleShot;
+        newData.fireMode = FireMode::SingleShot;
         break;
     case 1:
-        newData.fireMode =FireMode::ShortBurst;
+        newData.fireMode = FireMode::ShortBurst;
         break;
     case 2:
-        newData.fireMode =FireMode::LongBurst;
+        newData.fireMode = FireMode::LongBurst;
         break;
     default:
-        newData.fireMode =FireMode::Unknown;
+        newData.fireMode = FireMode::Unknown;
         break;
     }
 
     newData.gimbalSpeed = pData.speedSW;
+    newData.plc21Connected = pData.isConnected;
+
+    // Auto-disable detection when switching to night camera
+    if (!pData.switchCameraSW && m_currentStateData.activeCameraIsDay) {
+        newData.detectionEnabled = false;
+        qInfo() << "SystemStateModel: Night camera activated - Detection auto-disabled";
+    }
 
     updateData(newData);
+    setActiveCameraIsDay(pData.switchCameraSW);
 }
+
+// ============================================================================
+// UPDATE onPlc42DataChanged() METHOD
+// ============================================================================
 
 void SystemStateModel::onPlc42DataChanged(const Plc42Data &pData)
 {
     SystemStateData newData = m_currentStateData;
-    newData.upperLimitSensorActive = pData.stationUpperSensor;        // DataModel::m_stationUpperSensor
-    newData.lowerLimitSensorActive = pData.stationLowerSensor;        // DataModel::m_stationLowerSensor
-    newData.emergencyStopActive = pData.emergencyStopActive;           // (Not directly in DataModel – you might map one of the station inputs)
+    
+    // Limit sensors
+    newData.upperLimitSensorActive = pData.stationUpperSensor;
+    newData.lowerLimitSensorActive = pData.stationLowerSensor;
 
-    // Additional station inputs (if needed)
-    newData.stationAmmunitionLevel = pData.ammunitionLevel;        // DataModel::m_stationAmmunitionLevel
-    newData.hatchState = pData.hatchState;                 // DataModel::m_stationInput1
-    newData.freeGimbalState = pData.freeGimbalState;                 // DataModel::m_stationInput2
-    newData.stationInput3 = pData.stationInput3;                 // DataModel::m_stationInput3
+    // Station inputs
+    newData.stationAmmunitionLevel = pData.ammunitionLevel;
+    newData.hatchState = pData.hatchState;
+    newData.freeGimbalState = pData.freeGimbalState;  // ✓ FREE toggle
+    
+    // HOME-END signals (one per axis) ⭐ NEW
+    newData.azimuthHomeComplete = pData.azimuthHomeComplete;
+    newData.elevationHomeComplete = pData.elevationHomeComplete;
 
-    newData.solenoidMode     = pData.solenoidMode;
-    newData.gimbalOpMode     = pData.gimbalOpMode;
-    newData.azimuthSpeed     = pData.azimuthSpeed;
-    newData.elevationSpeed   = pData.elevationSpeed;
+    // Control states
+    newData.solenoidMode = pData.solenoidMode;
+    newData.gimbalOpMode = pData.gimbalOpMode;
+    newData.azimuthSpeed = pData.azimuthSpeed;
+    newData.elevationSpeed = pData.elevationSpeed;
     newData.azimuthDirection = pData.azimuthDirection;
     newData.elevationDirection = pData.elevationDirection;
-    newData.solenoidState     = pData.solenoidState;
-
-
     newData.solenoidState = pData.solenoidState;
     newData.resetAlarm = pData.resetAlarm;
+    newData.plc42Connected = pData.isConnected;
+
+    // ========================================================================
+    // FREE MODE AUTONOMOUS CONTROL (local toggle has priority)
+    // ========================================================================
+    // The physical FREE toggle switch at the station controls this
+    // MDUINO 42+ monitors I0_3 and autonomously switches gimbalOpMode
+    // We just track the state changes here
+    
+    // Rising edge: FREE toggle turned ON
+    if (pData.freeGimbalState && !m_currentStateData.freeGimbalState) {
+        qInfo() << "[SystemStateModel] FREE toggle activated - entering MotionFree";
+        newData.previousMotionMode = m_currentStateData.motionMode;
+        newData.motionMode = MotionMode::MotionFree;
+    }
+    // Falling edge: FREE toggle turned OFF
+    else if (!pData.freeGimbalState && m_currentStateData.freeGimbalState) {
+        qInfo() << "[SystemStateModel] FREE toggle deactivated - restoring previous mode";
+        newData.motionMode = newData.previousMotionMode;
+    }
+
+    // ========================================================================
+    // EMERGENCY STOP FROM GIMBAL OP MODE
+    // ========================================================================
+    // If PLC42 gimbalOpMode == 1, emergency stop is active via hardware
+    if (pData.gimbalOpMode == 1 && !m_currentStateData.emergencyStopActive) {
+        qCritical() << "[SystemStateModel] Emergency stop detected from PLC42";
+        newData.emergencyStopActive = true;
+    }
 
     updateData(newData);
 }
 
-
 void SystemStateModel::onServoActuatorDataChanged(const ServoActuatorData &actuatorData)
 {
     SystemStateData newData = m_currentStateData;
-    newData.actuatorPosition = actuatorData.position_mm; // or convert to float
+    newData.actuatorPosition = actuatorData.position_mm;
+    newData.actuatorConnected = actuatorData.isConnected;           
+    newData.actuatorVelocity = actuatorData.velocity_mm_s;           
+    newData.actuatorTemp = actuatorData.temperature_c;              
+    newData.actuatorBusVoltage = actuatorData.busVoltage_v;        
+    newData.actuatorTorque = actuatorData.torque_percent;            
+    newData.actuatorMotorOff = actuatorData.status.isMotorOff;      
+    newData.actuatorFault = actuatorData.status.isLatchingFaultActive;  
+
     updateData(newData);
 }
 
@@ -774,46 +1025,125 @@ void SystemStateModel::clearZeroing() { // Called on power down, or manually
     emit zeroingStateChanged(false, 0.0f, 0.0f);
 }
 
-
 void SystemStateModel::startWindageProcedure() {
     if (!m_currentStateData.windageModeActive) {
         m_currentStateData.windageModeActive = true;
+        m_currentStateData.windageDirectionCaptured = false;
         // PDF: "Windage is always zero when CROWS is started."
-        // So, starting the procedure doesn't necessarily clear the current value being entered.
+        // Note: We don't clear existing values here - they persist from previous session
         qDebug() << "Windage procedure started.";
         emit dataChanged(m_currentStateData);
-        emit windageStateChanged(true, m_currentStateData.windageSpeedKnots);
+        emit windageStateChanged(true, 
+                                 m_currentStateData.windageSpeedKnots,
+                                 m_currentStateData.windageDirectionDegrees);
+    }
+}
+
+void SystemStateModel::captureWindageDirection(float currentAzimuthDegrees) {
+    // Called when user presses MENU SEL in step 5 after aligning WS to wind
+    if (m_currentStateData.windageModeActive && !m_currentStateData.windageDirectionCaptured) {
+        m_currentStateData.windageDirectionDegrees = currentAzimuthDegrees;
+        m_currentStateData.windageDirectionCaptured = true;
+        qDebug() << "Windage direction captured:" << m_currentStateData.windageDirectionDegrees << "degrees";
+        emit dataChanged(m_currentStateData);
+        emit windageStateChanged(true,
+                                 m_currentStateData.windageSpeedKnots,
+                                 m_currentStateData.windageDirectionDegrees);
     }
 }
 
 void SystemStateModel::setWindageSpeed(float knots) {
-    if (m_currentStateData.windageModeActive) {
+    // Called during step 6 when user adjusts wind speed with U/D buttons
+    if (m_currentStateData.windageModeActive && m_currentStateData.windageDirectionCaptured) {
         m_currentStateData.windageSpeedKnots = qMax(0.0f, knots); // Speed can't be negative
         qDebug() << "Windage speed set to:" << m_currentStateData.windageSpeedKnots << "knots";
         emit dataChanged(m_currentStateData);
-        emit windageStateChanged(true, m_currentStateData.windageSpeedKnots);
+        emit windageStateChanged(true,
+                                 m_currentStateData.windageSpeedKnots,
+                                 m_currentStateData.windageDirectionDegrees);
     }
 }
 
 void SystemStateModel::finalizeWindage() {
-    if (m_currentStateData.windageModeActive) {
+    // Called when user presses MENU SEL in step 6 to confirm wind speed
+    if (m_currentStateData.windageModeActive && m_currentStateData.windageDirectionCaptured) {
         m_currentStateData.windageModeActive = false;
         m_currentStateData.windageAppliedToBallistics = (m_currentStateData.windageSpeedKnots > 0.001f); // Apply if speed > 0
-        qDebug() << "Windage procedure finalized. Speed:" << m_currentStateData.windageSpeedKnots
+        qDebug() << "Windage procedure finalized."
+                 << "Direction:" << m_currentStateData.windageDirectionDegrees << "degrees"
+                 << "Speed:" << m_currentStateData.windageSpeedKnots << "knots"
                  << "Applied:" << m_currentStateData.windageAppliedToBallistics;
         emit dataChanged(m_currentStateData);
-        emit windageStateChanged(false, m_currentStateData.windageSpeedKnots);
+        emit windageStateChanged(false,
+                                 m_currentStateData.windageSpeedKnots,
+                                 m_currentStateData.windageDirectionDegrees);
     }
 }
 
-void SystemStateModel::clearWindage() { // Called on startup typically
+void SystemStateModel::clearWindage() {
+    // Called on startup or when windage needs to be reset
+    // PDF: "Windage is always zero when CROWS is started."
     m_currentStateData.windageModeActive = false;
     m_currentStateData.windageSpeedKnots = 0.0f;
+    m_currentStateData.windageDirectionDegrees = 0.0f;
+    m_currentStateData.windageDirectionCaptured = false;
     m_currentStateData.windageAppliedToBallistics = false;
     qDebug() << "Windage cleared.";
-    // Don't necessarily emit here if it's part of initial state reset
-    // emit dataChanged(m_currentStateData);
-    // emit windageStateChanged(false, 0.0f);
+    emit dataChanged(m_currentStateData);
+    emit windageStateChanged(false, 0.0f, 0.0f);
+}
+
+// =================================
+// ENVIRONMENTAL CONDITIONS
+// =================================
+
+void SystemStateModel::startEnvironmentalProcedure() {
+    if (!m_currentStateData.environmentalModeActive) {
+        m_currentStateData.environmentalModeActive = true;
+        qDebug() << "Environmental procedure started.";
+        emit dataChanged(m_currentStateData);
+    }
+}
+
+void SystemStateModel::setEnvironmentalTemperature(float celsius) {
+    if (m_currentStateData.environmentalModeActive) {
+        m_currentStateData.environmentalTemperatureCelsius = celsius;
+        qDebug() << "Environmental temperature set to:" << m_currentStateData.environmentalTemperatureCelsius << "°C";
+        emit dataChanged(m_currentStateData);
+    }
+}
+
+void SystemStateModel::setEnvironmentalAltitude(float meters) {
+    if (m_currentStateData.environmentalModeActive) {
+        m_currentStateData.environmentalAltitudeMeters = meters;
+        qDebug() << "Environmental altitude set to:" << m_currentStateData.environmentalAltitudeMeters << "m";
+        emit dataChanged(m_currentStateData);
+    }
+}
+
+void SystemStateModel::finalizeEnvironmental() {
+    if (m_currentStateData.environmentalModeActive) {
+        m_currentStateData.environmentalModeActive = false;
+        m_currentStateData.environmentalAppliedToBallistics = true;
+        qDebug() << "Environmental procedure finalized."
+                 << "Temp:" << m_currentStateData.environmentalTemperatureCelsius << "°C"
+                 << "Altitude:" << m_currentStateData.environmentalAltitudeMeters << "m"
+                 << "Applied:" << m_currentStateData.environmentalAppliedToBallistics
+                 << "| NOTE: Crosswind calculated from windage, not environmental menu";
+        emit dataChanged(m_currentStateData);
+    }
+}
+
+void SystemStateModel::clearEnvironmental() {
+    // Reset to ISA standard atmosphere
+    // NOTE: Crosswind is NOT stored here - it's calculated from windage
+    m_currentStateData.environmentalModeActive = false;
+    m_currentStateData.environmentalTemperatureCelsius = 15.0f;   // ISA standard: 15°C at sea level
+    m_currentStateData.environmentalAltitudeMeters = 0.0f;        // Sea level
+    m_currentStateData.environmentalAppliedToBallistics = false;
+    qDebug() << "Environmental settings cleared (ISA standard atmosphere)."
+             << "| NOTE: Use windage menu to set wind conditions";
+    emit dataChanged(m_currentStateData);
 }
 
 void SystemStateModel::setLeadAngleCompensationActive(bool active) {
@@ -849,27 +1179,58 @@ void SystemStateModel::setLeadAngleCompensationActive(bool active) {
 }
 
 void SystemStateModel::recalculateDerivedAimpointData() {
-    SystemStateData& data = m_currentStateData; // Work on the member directly
+    // ========================================================================
+    // ARCHITECTURAL PRINCIPLE: Two Separate Coordinate Systems
+    // ========================================================================
+    // 1. RETICLE: Gun boresight with ZEROING ONLY (shows where gun points)
+    // 2. CCIP:    Impact prediction with ZEROING + LEAD (shows where bullets hit)
+    // ========================================================================
+
+    SystemStateData& data = m_currentStateData;
 
     // Determine active camera's HFOV
-    // You need a way to know which camera is active. Let's assume SystemStateData has it.
-    // Add this to SystemStateData if it's not there:
-    // bool activeCameraIsDay = true;
     float activeHfov = data.activeCameraIsDay ? static_cast<float>(data.dayCurrentHFOV) : static_cast<float>(data.nightCurrentHFOV);
 
+    // ========================================================================
+    // CALCULATION 1: RETICLE Position (Zeroing ONLY)
+    // ========================================================================
+    // Main reticle shows gun boresight with zeroing correction
+    // NO lead angle applied - this is pure gun pointing direction
+    // ========================================================================
     QPointF newReticlePosPx = ReticleAimpointCalculator::calculateReticleImagePositionPx(
-        data.zeroingAzimuthOffset,        // float
-        data.zeroingElevationOffset,      // float
-        data.zeroingAppliedToBallistics,  // bool
-        data.leadAngleOffsetAz,           // float
-        data.leadAngleOffsetEl,           // float
-        data.leadAngleCompensationActive, // bool
-        data.currentLeadAngleStatus,      // LeadAngleStatus
-        activeHfov,                       // float
-        data.currentImageWidthPx,         // int
-        data.currentImageHeightPx         // int
+        data.zeroingAzimuthOffset,        // Zeroing correction
+        data.zeroingElevationOffset,      // Zeroing correction
+        data.zeroingAppliedToBallistics,  // Apply zeroing?
+        0.0f,                             // ← NO LEAD ANGLE for reticle!
+        0.0f,                             // ← NO LEAD ANGLE for reticle!
+        false,                            // ← LAC not applied to reticle
+        LeadAngleStatus::Off,             // ← Status irrelevant for reticle
+        activeHfov,
+        data.currentImageWidthPx,
+        data.currentImageHeightPx
     );
 
+    // ========================================================================
+    // CALCULATION 2: CCIP Position (Zeroing + Lead)
+    // ========================================================================
+    // CCIP pipper shows bullet impact point with full ballistic compensation
+    // Includes BOTH zeroing AND lead angle
+    // Only visible when LAC is active
+    // ========================================================================
+    QPointF newCcipPosPx = ReticleAimpointCalculator::calculateReticleImagePositionPx(
+        data.zeroingAzimuthOffset,        // Zeroing correction
+        data.zeroingElevationOffset,      // Zeroing correction
+        data.zeroingAppliedToBallistics,  // Apply zeroing?
+        data.leadAngleOffsetAz,           // ← WITH lead angle!
+        data.leadAngleOffsetEl,           // ← WITH lead angle!
+        data.leadAngleCompensationActive, // ← LAC applied to CCIP
+        data.currentLeadAngleStatus,      // ← Status matters for CCIP
+        activeHfov,
+        data.currentImageWidthPx,
+        data.currentImageHeightPx
+    );
+
+    // Update reticle position
     bool reticlePosChanged = false;
     if (!qFuzzyCompare(data.reticleAimpointImageX_px, static_cast<float>(newReticlePosPx.x()))) {
         data.reticleAimpointImageX_px = static_cast<float>(newReticlePosPx.x());
@@ -878,6 +1239,17 @@ void SystemStateModel::recalculateDerivedAimpointData() {
     if (!qFuzzyCompare(data.reticleAimpointImageY_px, static_cast<float>(newReticlePosPx.y()))) {
         data.reticleAimpointImageY_px = static_cast<float>(newReticlePosPx.y());
         reticlePosChanged = true;
+    }
+
+    // Update CCIP position
+    bool ccipPosChanged = false;
+    if (!qFuzzyCompare(data.ccipImpactImageX_px, static_cast<float>(newCcipPosPx.x()))) {
+        data.ccipImpactImageX_px = static_cast<float>(newCcipPosPx.x());
+        ccipPosChanged = true;
+    }
+    if (!qFuzzyCompare(data.ccipImpactImageY_px, static_cast<float>(newCcipPosPx.y()))) {
+        data.ccipImpactImageY_px = static_cast<float>(newCcipPosPx.y());
+        ccipPosChanged = true;
     }
 
     // Update status texts
@@ -901,9 +1273,10 @@ void SystemStateModel::recalculateDerivedAimpointData() {
 
     bool statusTextChanged = (oldLeadStatusText != data.leadStatusText) || (oldZeroingStatusText != data.zeroingStatusText);
 
-    if (reticlePosChanged || statusTextChanged) {
-        qDebug() << "SystemStateModel: Recalculated Reticle. PosPx X:" << data.reticleAimpointImageX_px
-                 << "Y:" << data.reticleAimpointImageY_px
+    if (reticlePosChanged || ccipPosChanged || statusTextChanged) {
+        qDebug() << "SystemStateModel: Recalculated Aimpoints."
+                 << "Reticle(zeroing only):" << data.reticleAimpointImageX_px << "," << data.reticleAimpointImageY_px
+                 << "CCIP(zeroing+lead):" << data.ccipImpactImageX_px << "," << data.ccipImpactImageY_px
                  << "LeadTxt:" << data.leadStatusText << "ZeroTxt:" << data.zeroingStatusText;
         emit dataChanged(m_currentStateData); // Emit if anything derived changed
     }
@@ -1201,22 +1574,20 @@ void SystemStateModel::selectPreviousTRPLocationPage() {
     emit dataChanged(data);
 }
 
-void SystemStateModel::processStateTransitions(const SystemStateData& oldData, SystemStateData& newData)
+ 
+void SystemStateModel::processStateTransitions(const SystemStateData& oldData, 
+                                                SystemStateData& newData)
 {
-    // This function takes newData by reference, so it can modify it directly.
-
-    // PRIORITY 1: Emergency Stop Check
-    // If the E-Stop has just been activated
+    // ========================================================================
+    // PRIORITY 1: Emergency Stop Check (HIGHEST PRIORITY!)
+    // ========================================================================
     if (newData.emergencyStopActive && !oldData.emergencyStopActive) {
-        // We pass the reference 'newData' to be modified
-        enterEmergencyStopMode(); // Modify enterEmergencyStopMode to take a reference
-        return; // E-Stop overrides all other transitions
+        enterEmergencyStopMode();
+        return;  // E-Stop overrides all other transitions
     }
 
-    // If E-Stop has been released
     if (!newData.emergencyStopActive && oldData.emergencyStopActive) {
-        // Go to a safe, idle state. Operator must re-enable the station.
-        enterIdleMode(); // Modify enterIdleMode to take a reference
+        enterIdleMode();
         return;
     }
 
@@ -1225,15 +1596,20 @@ void SystemStateModel::processStateTransitions(const SystemStateData& oldData, S
         return;
     }
 
-    // PRIORITY 2: Station Power Check
-    // If station was just disabled
+    // ========================================================================
+    // PRIORITY 2: HOMING SEQUENCE MANAGEMENT
+    // ========================================================================
+    processHomingStateMachine(oldData, newData);
+
+    // ========================================================================
+    // PRIORITY 3: Station Power Check
+    // ========================================================================
     if (!newData.stationEnabled && oldData.stationEnabled) {
         enterIdleMode();
         return;
     }
-    // If station was just enabled
+    
     if (newData.stationEnabled && !oldData.stationEnabled) {
-        // If we were Idle, transition to Surveillance
         if (newData.opMode == OperationalMode::Idle) {
             enterSurveillanceMode();
         }
@@ -1293,27 +1669,98 @@ void SystemStateModel::commandEngagement(bool start) {
     emit dataChanged(m_currentStateData);
 }
 
- 
+void SystemStateModel::processHomingStateMachine(const SystemStateData& oldData,
+                                                  SystemStateData& newData)
+{
+    // ========================================================================
+    // HOMING BUTTON PRESSED (rising edge)
+    // ========================================================================
+    if (newData.gotoHomePosition && !oldData.gotoHomePosition) {
+        // Home button just pressed
+        if (newData.homingState == HomingState::Idle) {
+            qInfo() << "[SystemStateModel] Home button pressed - initiating homing";
+            newData.homingState = HomingState::Requested;
+            newData.motionMode = MotionMode::Idle;  // Suspend motion during homing
+            // GimbalController will send HOME command in next cycle
+        }
+    }
+
+    // ========================================================================
+    // HOMING IN PROGRESS → CHECK FOR COMPLETION (REQUIRE BOTH AXES)
+    // ========================================================================
+    if (newData.homingState == HomingState::InProgress) {
+        // Check if BOTH HOME-END signals received
+        // We need both azimuth AND elevation to complete homing
+        bool azHomeDone = newData.azimuthHomeComplete;
+        bool elHomeDone = newData.elevationHomeComplete;
+        
+        // Log individual axis completion
+        if (azHomeDone && !oldData.azimuthHomeComplete) {
+            qInfo() << "[SystemStateModel] ✓ Azimuth HOME-END received";
+        }
+        if (elHomeDone && !oldData.elevationHomeComplete) {
+            qInfo() << "[SystemStateModel] ✓ Elevation HOME-END received";
+        }
+        
+        // Complete homing only when BOTH axes report HOME-END
+        if (azHomeDone && elHomeDone &&
+            (!oldData.azimuthHomeComplete || !oldData.elevationHomeComplete)) {
+            qInfo() << "[SystemStateModel] ✓✓ BOTH axes homed - homing complete";
+            newData.homingState = HomingState::Completed;
+            // GimbalController will restore motion mode
+        }
+    }
+
+    // ========================================================================
+    // HOMING COMPLETED → AUTO-CLEAR FLAGS
+    // ========================================================================
+    if (newData.homingState == HomingState::Completed &&
+        oldData.homingState == HomingState::InProgress) {
+        // Homing just completed - clear flags after one cycle
+        qDebug() << "[SystemStateModel] Clearing homing flags";
+        newData.gotoHomePosition = false;
+        newData.azimuthHomeComplete = false;
+        newData.elevationHomeComplete = false;
+        // Will transition to Idle on next cycle
+    }
+
+    // ========================================================================
+    // AUTO-TRANSITION COMPLETED/FAILED/ABORTED → IDLE
+    // ========================================================================
+    if ((newData.homingState == HomingState::Completed ||
+         newData.homingState == HomingState::Failed ||
+         newData.homingState == HomingState::Aborted) &&
+        !newData.gotoHomePosition) {
+        // Flags cleared, transition back to idle
+        newData.homingState = HomingState::Idle;
+    }
+}
+
+// ============================================================================
+// UPDATE enterEmergencyStopMode() - ADD HOMING ABORT
+// ============================================================================
 
 void SystemStateModel::enterEmergencyStopMode() {
     SystemStateData& data = m_currentStateData;
-    if (data.opMode == OperationalMode::EmergencyStop) return; // Already in this state
+    if (data.opMode == OperationalMode::EmergencyStop) return;
 
     qCritical() << "[MODEL] ENTERING EMERGENCY STOP MODE!";
 
-    // Set the high-level operational mode
+    // Abort homing if in progress
+    if (data.homingState == HomingState::InProgress ||
+        data.homingState == HomingState::Requested) {
+        qWarning() << "[MODEL] Aborting in-progress homing sequence";
+        data.homingState = HomingState::Aborted;
+        data.gotoHomePosition = false;
+    }
+
     data.opMode = OperationalMode::EmergencyStop;
-    // Set the gimbal motion mode to Idle to ensure no commands are being calculated
     data.motionMode = MotionMode::Idle;
-    // Set all "action" flags to false
-    data.trackingActive = false; // Use the old one if still present, or better:
+    data.trackingActive = false;
     data.currentTrackingPhase = TrackingPhase::Off;
     data.trackerHasValidTarget = false;
     data.leadAngleCompensationActive = false;
-    // Do NOT clear zeroing/windage settings, as they might be needed after reset.
-    // The E-Stop is about stopping motion and firing, not erasing calibration.
 
-    // Emit the state change so all components react
     emit dataChanged(m_currentStateData);
 }
 
@@ -1565,18 +2012,48 @@ void SystemStateModel::updateTrackingResult(
 
 
 void SystemStateModel::startTrackingAcquisition() {
+    // ========================================================================
+    // UC2: Initiate Tracking on Moving Target
+    // UC3: Track Target with Lead Angle Active
+    // ========================================================================
+    // CRITICAL ARCHITECTURAL PRINCIPLE:
+    // • Visual tracking (acquisition box) operates in IMAGE COORDINATES
+    // • Ballistic compensation (reticle position) operates in ANGULAR COORDINATES
+    // • These TWO COORDINATE SYSTEMS must remain SEPARATE
+    //
+    // The acquisition box marks WHERE THE TARGET APPEARS VISUALLY
+    // The reticle marks WHERE TO AIM TO HIT (with ballistic corrections)
+    // ========================================================================
+
     SystemStateData& data = m_currentStateData;
     if (data.currentTrackingPhase == TrackingPhase::Off) {
         data.currentTrackingPhase = TrackingPhase::Acquisition;
-        // Get the current calculated reticle position from our own state data
+
+        // ✅ FIX: Center acquisition box on RETICLE position (where gun is pointing)
+        // This provides better UX - when operator aims at target and clicks to track,
+        // the yellow box appears exactly where they're aiming (reticle position)
+        // Reticle position includes zeroing offsets, which is correct because:
+        // - The operator has zeroed the weapon to align gun with camera
+        // - They are aiming AT THE TARGET with the reticle
+        // - The acquisition box should appear WHERE THEY ARE AIMING
         float reticleCenterX = data.reticleAimpointImageX_px;
         float reticleCenterY = data.reticleAimpointImageY_px;
 
-        qDebug() << "[MODEL] Starting Acquisition. Centering initial box on reticle at:"
-                 << reticleCenterX << "," << reticleCenterY;
+        qDebug() << "========================================";
+        qDebug() << "STARTING TRACKING ACQUISITION";
+        qDebug() << "========================================";
+        qDebug() << "Screen Size:" << data.currentImageWidthPx << "x" << data.currentImageHeightPx;
+        qDebug() << "Screen Center:" << (data.currentImageWidthPx/2) << "," << (data.currentImageHeightPx/2);
+        qDebug() << "Zeroing Status:";
+        qDebug() << "  - Applied:" << data.zeroingAppliedToBallistics;
+        qDebug() << "  - Az Offset:" << data.zeroingAzimuthOffset << "deg";
+        qDebug() << "  - El Offset:" << data.zeroingElevationOffset << "deg";
+        qDebug() << "Reticle Position (from SystemStateData):";
+        qDebug() << "  - X:" << reticleCenterX << "px";
+        qDebug() << "  - Y:" << reticleCenterY << "px";
+        qDebug() << "Centering acquisition box on RETICLE position";
 
-        // Initialize acquisition box centered on the reticle's current position
-        // You might want default sizes stored as constants.
+        // Initialize acquisition box centered on RETICLE (where gun is pointing)
         float defaultBoxW = 100.0f;
         float defaultBoxH = 100.0f;
         data.acquisitionBoxW_px = defaultBoxW;
@@ -1584,9 +2061,18 @@ void SystemStateModel::startTrackingAcquisition() {
         data.acquisitionBoxX_px = reticleCenterX - (defaultBoxW / 2.0f);
         data.acquisitionBoxY_px = reticleCenterY - (defaultBoxH / 2.0f);
 
-        // Clamp the box to ensure it's within screen bounds, in case the reticle is near an edge
-        data.acquisitionBoxX_px = qBound(0.0f, data.acquisitionBoxX_px, static_cast<float>(data.currentImageWidthPx) - data.acquisitionBoxW_px);
-        data.acquisitionBoxY_px = qBound(0.0f, data.acquisitionBoxY_px, static_cast<float>(data.currentImageHeightPx) - data.acquisitionBoxH_px);
+        // Safety: Clamp to screen bounds (should already be centered, but ensure safety)
+        data.acquisitionBoxX_px = qBound(0.0f, data.acquisitionBoxX_px,
+                                         static_cast<float>(data.currentImageWidthPx) - data.acquisitionBoxW_px);
+        data.acquisitionBoxY_px = qBound(0.0f, data.acquisitionBoxY_px,
+                                         static_cast<float>(data.currentImageHeightPx) - data.acquisitionBoxH_px);
+
+        qDebug() << "Acquisition Box Position:";
+        qDebug() << "  - Top-Left: (" << data.acquisitionBoxX_px << "," << data.acquisitionBoxY_px << ")";
+        qDebug() << "  - Size:" << data.acquisitionBoxW_px << "x" << data.acquisitionBoxH_px;
+        qDebug() << "  - Center: (" << (data.acquisitionBoxX_px + defaultBoxW/2.0f) << ","
+                 << (data.acquisitionBoxY_px + defaultBoxH/2.0f) << ")";
+        qDebug() << "========================================";
 
         // We are still in Surveillance and Manual motion
         data.opMode = OperationalMode::Surveillance;
@@ -1644,16 +2130,38 @@ void SystemStateModel::stopTracking() {
 }
 */
 void SystemStateModel::adjustAcquisitionBoxSize(float dW, float dH) {
+    // ========================================================================
+    // SAFETY: Acquisition Box Boundary Validation
+    // ========================================================================
+    // Ensures acquisition box stays within valid bounds during user adjustment
+    // Maintains minimum size for VPI tracker initialization requirements
+    // Prevents box from exceeding screen dimensions
+    // ========================================================================
+
     SystemStateData& data = m_currentStateData;
     if (data.currentTrackingPhase == TrackingPhase::Acquisition) {
-        data.acquisitionBoxW_px += dW;
-        data.acquisitionBoxH_px += dH;
-        // Clamp to min/max sizes
-        data.acquisitionBoxW_px = qBound(20.0f, data.acquisitionBoxW_px, static_cast<float>(data.currentImageWidthPx * 0.8f));
-        data.acquisitionBoxH_px = qBound(20.0f, data.acquisitionBoxH_px, static_cast<float>(data.currentImageHeightPx * 0.8f));
-        // Recenter box after resizing
+        // Apply size adjustment
+        float newWidth = data.acquisitionBoxW_px + dW;
+        float newHeight = data.acquisitionBoxH_px + dH;
+
+        // Define safety constraints
+        const float MIN_BOX_SIZE = 20.0f;   // VPI tracker minimum patch size requirement
+        const float MAX_BOX_RATIO = 0.8f;   // Maximum 80% of screen dimension
+
+        // Clamp to valid range
+        data.acquisitionBoxW_px = qBound(MIN_BOX_SIZE, newWidth,
+                                         static_cast<float>(data.currentImageWidthPx * MAX_BOX_RATIO));
+        data.acquisitionBoxH_px = qBound(MIN_BOX_SIZE, newHeight,
+                                         static_cast<float>(data.currentImageHeightPx * MAX_BOX_RATIO));
+
+        // Recenter box after resizing (maintains screen-centered position)
         data.acquisitionBoxX_px = (data.currentImageWidthPx / 2.0f) - (data.acquisitionBoxW_px / 2.0f);
         data.acquisitionBoxY_px = (data.currentImageHeightPx / 2.0f) - (data.acquisitionBoxH_px / 2.0f);
+
+        qDebug() << "   Acquisition box resized to"
+                 << data.acquisitionBoxW_px << "x" << data.acquisitionBoxH_px
+                 << "at [" << data.acquisitionBoxX_px << "," << data.acquisitionBoxY_px << "]";
+
         emit dataChanged(m_currentStateData);
     }
 }

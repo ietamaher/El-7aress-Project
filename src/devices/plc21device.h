@@ -151,13 +151,16 @@ private slots:
     void onDigitalInputsReadReady(QModbusReply *reply);
     void onAnalogInputsReadReady(QModbusReply *reply);
     void onWriteReady(QModbusReply *reply);
+    void onCommunicationWatchdogTimeout();
+
 private:
     // Helper methods
     void readDigitalInputs();
     void readAnalogInputs();
     void writeData();
     void updatePanelData(const Plc21PanelData &newData);
-
+    void resetCommunicationWatchdog();
+    void setConnectionState(bool connected);
     // Data storage
     QVector<bool> m_digitalInputs;
     QVector<uint16_t> m_analogInputs;
@@ -168,7 +171,8 @@ private:
     
     // Thread safety
     mutable QMutex m_mutex;
-
+    QTimer* m_communicationWatchdog;
+    static constexpr int COMMUNICATION_TIMEOUT_MS = 3000;
 signals:
     void panelDataChanged(const Plc21PanelData &data);
 };

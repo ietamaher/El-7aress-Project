@@ -11,10 +11,17 @@ Plc21Device::Plc21Device(const QString &device,
                          int slaveId,
                          QSerialPort::Parity parity,
                          QObject *parent)
-    : ModbusDeviceBase(device, baudRate, slaveId, parity, parent)
+    : ModbusDeviceBase(device, baudRate, slaveId, parity, parent),
+      m_communicationWatchdog(new QTimer(this))
 {
     // Set PLC-specific poll interval (50ms instead of default 100ms)
     setPollInterval(50);
+
+    // Communication watchdog setup
+    m_communicationWatchdog->setSingleShot(true);
+    m_communicationWatchdog->setInterval(COMMUNICATION_TIMEOUT_MS);
+    connect(m_communicationWatchdog, &QTimer::timeout,
+            this, &Plc21Device::onCommunicationWatchdogTimeout);
 
     // Connect to base class signals
     connect(this, &ModbusDeviceBase::connectionStateChanged,
@@ -24,7 +31,9 @@ Plc21Device::Plc21Device(const QString &device,
 // Destructor: Base class handles disconnection
 Plc21Device::~Plc21Device()
 {
-    // No specific cleanup needed, base class destructor will handle it
+    if (m_communicationWatchdog) {
+        m_communicationWatchdog->stop();
+    }
 }
 
 // Override the pure virtual readData method from base class
@@ -89,14 +98,14 @@ void Plc21Device::onConnectionStateChanged(bool connected)
     if (connected) {
         logMessage("PLC Modbus connection established.");
         resetReconnectionAttempts();
+        m_communicationWatchdog->start();
     } else {
         logMessage("PLC Modbus device disconnected.");
+        m_communicationWatchdog->stop();
     }
 
     // Update panel data
-    Plc21PanelData newData = m_currentPanelData;
-    newData.isConnected = connected;
-    updatePanelData(newData);
+    setConnectionState(connected);
 }
 
 // Handles the response for digital input read requests
@@ -106,7 +115,8 @@ void Plc21Device::onDigitalInputsReadReady(QModbusReply *reply)
         return;
 
     stopTimeoutTimer(); // Stop timeout timer from base class
-
+    setConnectionState(true);
+    resetCommunicationWatchdog();
     QMutexLocker locker(&m_mutex);
     if (reply->error() == QModbusDevice::NoError) {
         const QModbusDataUnit unit = reply->result();
@@ -169,7 +179,8 @@ void Plc21Device::onAnalogInputsReadReady(QModbusReply *reply)
         return;
 
     stopTimeoutTimer(); // Stop timeout timer from base class
-
+    setConnectionState(true);
+    resetCommunicationWatchdog();
     QMutexLocker locker(&m_mutex);
     if (reply->error() == QModbusDevice::NoError) {
         const QModbusDataUnit unit = reply->result();
@@ -277,4 +288,31 @@ void Plc21Device::updatePanelData(const Plc21PanelData &newData)
         m_currentPanelData = newData;
         emit panelDataChanged(m_currentPanelData);
     }
+}
+
+void Plc21Device::resetCommunicationWatchdog()
+{
+    m_communicationWatchdog->start();
+}
+
+void Plc21Device::setConnectionState(bool connected)
+{
+    Plc21PanelData newData = m_currentPanelData;
+    if (newData.isConnected != connected) {
+        newData.isConnected = connected;
+        updatePanelData(newData);
+
+        if (connected) {
+            logMessage("PLC21 connected");
+        } else {
+            logMessage("PLC21 disconnected");
+        }
+    }
+}
+
+void Plc21Device::onCommunicationWatchdogTimeout()
+{
+    logMessage(QString("Communication timeout - no valid PLC21 data received for %1 ms")
+               .arg(COMMUNICATION_TIMEOUT_MS));
+    setConnectionState(false);
 }

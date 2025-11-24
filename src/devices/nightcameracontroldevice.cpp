@@ -2,12 +2,25 @@
 #include <QDebug>
 
 NightCameraControlDevice::NightCameraControlDevice(QObject *parent)
-    : BaseSerialDevice(parent)
+    : BaseSerialDevice(parent),
+      m_communicationWatchdog(new QTimer(this))
 {
     m_currentData.isConnected = false;
+    
+    // Communication watchdog setup
+    m_communicationWatchdog->setSingleShot(true);
+    m_communicationWatchdog->setInterval(COMMUNICATION_TIMEOUT_MS);
+    connect(m_communicationWatchdog, &QTimer::timeout,
+            this, &NightCameraControlDevice::onCommunicationWatchdogTimeout);
 }
 
 NightCameraControlDevice::~NightCameraControlDevice() {
+    if (m_statusCheckTimer) {
+        m_statusCheckTimer->stop();
+    }
+    if (m_communicationWatchdog) {
+        m_communicationWatchdog->stop();
+    }
     shutdown();
 }
 
@@ -23,8 +36,9 @@ void NightCameraControlDevice::configureSerialPort()
 void NightCameraControlDevice::onConnectionEstablished()
 {
     // Update data state
+    setConnectionState(true);
+    
     NightCameraData newData = m_currentData;
-    newData.isConnected = true;
     newData.errorState = false;
     updateNightCameraData(newData);
 
@@ -34,6 +48,9 @@ void NightCameraControlDevice::onConnectionEstablished()
         connect(m_statusCheckTimer, &QTimer::timeout, this, &NightCameraControlDevice::checkCameraStatus);
     }
     m_statusCheckTimer->start(m_statusCheckIntervalMs);
+    
+    // Start watchdog
+    m_communicationWatchdog->start();
 
     emit statusChanged(true);
     logMessage("Night camera connection established");
@@ -41,14 +58,18 @@ void NightCameraControlDevice::onConnectionEstablished()
 
 void NightCameraControlDevice::onConnectionLost()
 {
-    // Stop status timer
+    // Stop timers
     if (m_statusCheckTimer) {
         m_statusCheckTimer->stop();
     }
+    if (m_communicationWatchdog) {
+        m_communicationWatchdog->stop();
+    }
 
     // Update data state
+    setConnectionState(false);
+    
     NightCameraData newData = m_currentData;
-    newData.isConnected = false;
     newData.errorState = true;
     updateNightCameraData(newData);
 
@@ -197,7 +218,9 @@ void NightCameraControlDevice::handleResponse(const QByteArray &response) {
         logError("No response received from Night Camera.");
         return;
     }
-
+    // We received valid data - reset watchdog
+    setConnectionState(true);
+    resetCommunicationWatchdog();
     // Extract Process Code
     if (static_cast<quint8>(response.at(0)) != 0x6E) {
         logError("Invalid Process Code in response.");
@@ -327,4 +350,31 @@ void NightCameraControlDevice::handleStatusError(quint8 statusByte) {
     NightCameraData newData = m_currentData;
     newData.errorState = true;
     updateNightCameraData(newData);
+}
+
+void NightCameraControlDevice::resetCommunicationWatchdog()
+{
+    m_communicationWatchdog->start();
+}
+
+void NightCameraControlDevice::setConnectionState(bool connected)
+{
+    NightCameraData newData = m_currentData;
+    if (newData.isConnected != connected) {
+        newData.isConnected = connected;
+        updateNightCameraData(newData);
+
+        if (connected) {
+            logMessage("Night camera connected");
+        } else {
+            logMessage("Night camera disconnected");
+        }
+    }
+}
+
+void NightCameraControlDevice::onCommunicationWatchdogTimeout()
+{
+    logMessage(QString("Communication timeout - no valid camera data received for %1 ms")
+               .arg(COMMUNICATION_TIMEOUT_MS));
+    setConnectionState(false);
 }

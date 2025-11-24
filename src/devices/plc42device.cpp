@@ -14,19 +14,28 @@ Plc42Device::Plc42Device(const QString &device,
                          int slaveId,
                          QSerialPort::Parity parity,
                          QObject *parent)
-    : ModbusDeviceBase(device, baudRate, slaveId, parity, parent)
+    : ModbusDeviceBase(device, baudRate, slaveId, parity, parent),
+      m_communicationWatchdog(new QTimer(this))
 {
     // Set PLC42-specific polling interval (200ms)
     setPollInterval(50);
     
     // Initialize PLC42 data structure
     m_currentData = Plc42Data();
+    
+    // Communication watchdog setup
+    m_communicationWatchdog->setSingleShot(true);
+    m_communicationWatchdog->setInterval(COMMUNICATION_TIMEOUT_MS);
+    connect(m_communicationWatchdog, &QTimer::timeout,
+            this, &Plc42Device::onCommunicationWatchdogTimeout);
 }
 
 // Destructor: Base class handles cleanup automatically.
 Plc42Device::~Plc42Device()
 {
-    // Base class destructor will handle Modbus device cleanup
+    if (m_communicationWatchdog) {
+        m_communicationWatchdog->stop();
+    }
 }
 
 // Implementation of pure virtual method from ModbusDeviceBase
@@ -86,14 +95,31 @@ void Plc42Device::onDigitalInputsReadReady(QModbusReply *reply)
 
         // Update individual digital input fields based on their respective indices.
         if (unit.valueCount() >= 8) {
-            newData.stationUpperSensor  = (unit.value(0) != 0);
+            /*newData.stationUpperSensor  = (unit.value(0) != 0);
             newData.stationLowerSensor  = (unit.value(1) != 0);
             newData.emergencyStopActive = (unit.value(2) != 0);
             newData.ammunitionLevel     = (unit.value(3) != 0);
-            newData.hatchState       = (unit.value(4) != 0);
-            newData.freeGimbalState       = (unit.value(5) != 0);
+            newData.hatchState          = (unit.value(4) != 0);
+            newData.freeGimbalState     = (unit.value(5) != 0);
             newData.stationInput3       = (unit.value(6) != 0);
-            newData.solenoidActive      = (unit.value(7) != 0);
+            newData.solenoidActive      = (unit.value(7) != 0);*/
+
+            newData.stationUpperSensor     = (unit.value(0) != 0);  // I0_0
+            newData.stationLowerSensor     = (unit.value(1) != 0);  // I0_1
+            newData.hatchState             = (unit.value(2) != 0);  // I0_2
+            newData.freeGimbalState        = (unit.value(3) != 0);  // I0_3 (LOCAL toggle)
+            newData.ammunitionLevel        = (unit.value(4) != 0);  // I0_4
+            // unit.value(5) - Reserved for future E-STOP button
+            newData.azimuthHomeComplete    = (unit.value(6) != 0);  // I0_6 ⭐ NEW (Az HOME-END)
+            newData.elevationHomeComplete  = (unit.value(5) != 0);  // I0_7 ⭐ NEW (El HOME-END)
+
+            // Note: emergencyStopActive is NOT a physical input - it's derived from
+            // gimbalOpMode (set to true when gimbalOpMode == 1)
+            // This will be set in parseHoldingRegistersReply()
+
+            // Note: solenoidActive is NOT a physical input - it's the output state
+            // of the solenoid (Q1_0). Can be set based on solenoidState if needed.
+            newData.solenoidActive = (newData.solenoidState != 0);
         } else {
             logError("Insufficient digital input values.");
         }
@@ -311,4 +337,31 @@ void Plc42Device::updatePlc42Data(const Plc42Data &newData)
         m_currentData = newData;
         emit plc42DataChanged(m_currentData);
     }
+}
+
+void Plc42Device::resetCommunicationWatchdog()
+{
+    m_communicationWatchdog->start();
+}
+
+void Plc42Device::setConnectionState(bool connected)
+{
+    Plc42Data newData = m_currentData;
+    if (newData.isConnected != connected) {
+        newData.isConnected = connected;
+        updatePlc42Data(newData);
+
+        if (connected) {
+            logMessage("PLC42 connected");
+        } else {
+            logMessage("PLC42 disconnected");
+        }
+    }
+}
+
+void Plc42Device::onCommunicationWatchdogTimeout()
+{
+    logMessage(QString("Communication timeout - no valid PLC42 data received for %1 ms")
+               .arg(COMMUNICATION_TIMEOUT_MS));
+    setConnectionState(false);
 }

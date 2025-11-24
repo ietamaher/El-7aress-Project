@@ -75,6 +75,8 @@ protected:
     void onConnectionEstablished() override;
     void onConnectionLost() override;
 
+private slots:
+    void onCommunicationWatchdogTimeout();
 private:
     // Private helper functions (now simpler)
     void sendCommand(const QString &command);
@@ -90,7 +92,8 @@ private:
     int accelToSensorCounts(double accel_mm_s2) const;
     double sensorCountsToTorquePercent(int counts) const;
     int torquePercentToSensorCounts(double percent) const;
-
+    void resetCommunicationWatchdog();
+    void setConnectionState(bool connected);
     // Member variables
     ServoActuatorData m_currentData;
     QTimer *m_timeoutTimer;
@@ -101,7 +104,8 @@ private:
     static constexpr double SCREW_LEAD_MM = 3.175;
     static constexpr int COUNTS_PER_REVOLUTION = 1024;
     static constexpr int RETRACTED_ENDSTOP_OFFSET = 1024;
-
+    QTimer* m_communicationWatchdog;
+    static constexpr int COMMUNICATION_TIMEOUT_MS = 3000;
 };
 
 #endif // SERVOACTUATORDEVICE_H

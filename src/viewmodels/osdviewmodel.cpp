@@ -11,66 +11,56 @@ OsdViewModel::OsdViewModel(QObject *parent)
     , m_accentColor(QColor("#46E2A5")) // Default green
     , m_modeText("MODE: IDLE")
     , m_motionText("MOTION: MAN")
-    , m_rateText("RATE: SINGLE SHOT")
     , m_stabText("STAB: OFF")
     , m_cameraText("CAM: DAY")
-    , m_fovText("FOV: 45.0°")
-    , m_lrfText(" -- m")
-    , m_statusText("SYS: --- SAF NRD")
     , m_speedText("0.0%")
-    , m_zeroingVisible(false)
-    , m_zeroingText("Z")
-    , m_windageVisible(false)
-    , m_windageText("W")
-    , m_environmentVisible(false)
-    , m_environmentText("ENV")
-    , m_detectionVisible(false)
-    , m_detectionText("DETECTION: OFF")
-    , m_scanNameVisible(false)
-    , m_scanNameText("")
-    , m_leadAngleVisible(false)
-    , m_leadAngleText("")
-    , m_lacActive(false)
-    , m_leadAngleOffsetAz(0.0f)
-    , m_leadAngleOffsetEl(0.0f)
     , m_azimuth(0.0f)
     , m_elevation(0.0f)
-    , m_vehicleHeading(0.0f)
     , m_imuConnected(false)
-    , m_imuRollDeg(0.0)
-    , m_imuPitchDeg(0.0)
-    , m_imuYawDeg(0.0)
-    , m_imuTemp(0.0)
-    , m_gyroX(0.0)
-    , m_gyroY(0.0)
-    , m_gyroZ(0.0)
-    , m_accelX(0.0)
-    , m_accelY(0.0)
-    , m_accelZ(0.0)
+    , m_vehicleHeading(0.0)
+    , m_vehicleRoll(0.0)
+    , m_vehiclePitch(0.0)
+    , m_imuTemperature(0.0)
+    , m_statusText("SYS: --- SAF NRD")
+    , m_rateText("RATE: SINGLE SHOT")
+    , m_lrfText(" -- m")
+    , m_fovText("FOV: 45.0°")
+    , m_trackingBox(QRectF())
+    , m_trackingBoxVisible(false)
+    , m_trackingBoxColor("yellow")
+    , m_trackingBoxDashed(false)
+    , m_trackingActive(false)
+    , m_trackingConfidence(0.0f)
+    , m_acquisitionBox(QRectF())
+    , m_acquisitionBoxVisible(false)
     , m_reticleType(1) // BoxCrosshair
     , m_reticleOffsetX(0.0f)
     , m_reticleOffsetY(0.0f)
     , m_currentFov(45.0f)
-    , m_ccipVisible(false)
     , m_ccipX(512.0f)
     , m_ccipY(384.0f)
+    , m_ccipVisible(false)
     , m_ccipStatus("Off")
-    , m_trackingActive(false)
-    , m_trackingBoxVisible(false)
-    , m_trackingBox(QRectF())
-    , m_trackingBoxColor("yellow")
-    , m_trackingBoxDashed(false)
-    , m_trackingConfidence(0.0f)
-    , m_acquisitionBoxVisible(false)
-    , m_acquisitionBox(QRectF())
-    , m_rangeMeters(0.0f)
-    , m_zoneWarningVisible(false)
+    , m_zeroingText("Z")
+    , m_zeroingVisible(false)
+    , m_environmentText("ENV")
+    , m_environmentVisible(false)
+    , m_windageText("W")
+    , m_windageVisible(false)
+    , m_detectionText("DETECTION: OFF")
+    , m_detectionVisible(false)
     , m_zoneWarningText("")
-    , m_startupMessageVisible(false)
+    , m_zoneWarningVisible(false)
+    , m_leadAngleText("")
+    , m_leadAngleVisible(false)
+    , m_scanNameText("")
+    , m_scanNameVisible(false)
+    , m_lacActive(false)
+    , m_rangeMeters(0.0f)
     , m_startupMessageText("")
-    , m_errorMessageVisible(false)
+    , m_startupMessageVisible(false)
     , m_errorMessageText("")
-    , m_ammunitionLevel(true)
+    , m_errorMessageVisible(false)
     , m_dayCameraConnected(true)
     , m_dayCameraError(false)
     , m_nightCameraConnected(true)
@@ -87,6 +77,7 @@ OsdViewModel::OsdViewModel(QObject *parent)
     , m_plc21Connected(true)
     , m_plc42Connected(true)
     , m_joystickConnected(true)
+    , m_ammunitionLevel(true)
 {
 }
 
@@ -217,59 +208,29 @@ void OsdViewModel::updateFromFrameData(const FrameData &data)
     // ========================================================================
     // IMU SENSOR DATA
     // ========================================================================
-    bool imuDataChange = false;
-
     if (m_imuConnected != data.imuConnected) {
         m_imuConnected = data.imuConnected;
         emit imuConnectedChanged();
-        imuDataChange = true;
     }
 
     if (data.imuConnected) {
-        if (m_imuRollDeg != data.imuRollDeg) {
-            m_imuRollDeg = data.imuRollDeg;
-            imuDataChange = true;
+        // Update IMU data only when connected
+        if (m_vehicleRoll != data.imuRollDeg) {
+            m_vehicleRoll = data.imuRollDeg;
+            emit vehicleRollChanged();
         }
-        if (m_imuPitchDeg != data.imuPitchDeg) {
-            m_imuPitchDeg = data.imuPitchDeg;
-            imuDataChange = true;
+        if (m_vehiclePitch != data.imuPitchDeg) {
+            m_vehiclePitch = data.imuPitchDeg;
+            emit vehiclePitchChanged();
         }
-        if (m_imuYawDeg != data.imuYawDeg) {
-            m_imuYawDeg = data.imuYawDeg;
-            imuDataChange = true;
+        if (m_vehicleHeading != data.imuYawDeg) {
+            m_vehicleHeading = data.imuYawDeg;
+            emit vehicleHeadingChanged();
         }
-        if (m_imuTemp != data.imuTemp) {
-            m_imuTemp = data.imuTemp;
-            imuDataChange = true;
+        if (m_imuTemperature != data.imuTemp) {
+            m_imuTemperature = data.imuTemp;
+            emit imuTemperatureChanged();
         }
-        if (m_gyroX != data.gyroX) {
-            m_gyroX = data.gyroX;
-            imuDataChange = true;
-        }
-        if (m_gyroY != data.gyroY) {
-            m_gyroY = data.gyroY;
-            imuDataChange = true;
-        }
-        if (m_gyroZ != data.gyroZ) {
-            m_gyroZ = data.gyroZ;
-            imuDataChange = true;
-        }
-        if (m_accelX != data.accelX) {
-            m_accelX = data.accelX;
-            imuDataChange = true;
-        }
-        if (m_accelY != data.accelY) {
-            m_accelY = data.accelY;
-            imuDataChange = true;
-        }
-        if (m_accelZ != data.accelZ) {
-            m_accelZ = data.accelZ;
-            imuDataChange = true;
-        }
-    }
-
-    if (imuDataChange) {
-        emit imuDataChanged();
     }
 
     // ========================================================================
@@ -380,13 +341,6 @@ void OsdViewModel::updateFromFrameData(const FrameData &data)
         emit lacActiveChanged();
     }
 
-    if (m_leadAngleOffsetAz != data.leadAngleOffsetAz_deg ||
-        m_leadAngleOffsetEl != data.leadAngleOffsetEl_deg) {
-        m_leadAngleOffsetAz = data.leadAngleOffsetAz_deg;
-        m_leadAngleOffsetEl = data.leadAngleOffsetEl_deg;
-        emit leadAngleOffsetsChanged();
-    }
-
     // ========================================================================
     // RETICLE POSITION (Gun Boresight with Zeroing Only)
     // ========================================================================
@@ -397,14 +351,10 @@ void OsdViewModel::updateFromFrameData(const FrameData &data)
     float newReticleOffsetX = data.reticleAimpointImageX_px - screenCenterX;
     float newReticleOffsetY = data.reticleAimpointImageY_px - screenCenterY;
 
-    if (m_reticleOffsetX != newReticleOffsetX) {
+    if (m_reticleOffsetX != newReticleOffsetX || m_reticleOffsetY != newReticleOffsetY) {
         m_reticleOffsetX = newReticleOffsetX;
-        emit reticlePositionChanged();
-    }
-
-    if (m_reticleOffsetY != newReticleOffsetY) {
         m_reticleOffsetY = newReticleOffsetY;
-        emit reticlePositionChanged();
+        emit reticleOffsetChanged();
     }
 
     // Update reticle type from FrameData
@@ -444,7 +394,7 @@ void OsdViewModel::updateFromFrameData(const FrameData &data)
         case LeadAngleStatus::Lag:
             newCcipStatus = "Lag";
             break;
-        case LeadAngleStatus::ZoomOut:
+        case LeadAngleStatus::ZoomOut :
             newCcipStatus = "Zoom Too High";
             break;
         /*case LeadAngleStatus::RangeInvalid:
@@ -477,6 +427,7 @@ void OsdViewModel::updateFromFrameData(const FrameData &data)
     if (m_trackingActive != newTrackingActive) {
         m_trackingActive = newTrackingActive;
         emit trackingActiveChanged();
+        emit isTrackingActiveChanged();
     }
 
     bool newTrackingBoxVisible = newTrackingActive;
@@ -495,20 +446,20 @@ void OsdViewModel::updateFromFrameData(const FrameData &data)
     }
 
     // Tracking box color based on tracking state
-    QString newBoxColor = "yellow"; // Default
+    QColor newBoxColor = QColor("yellow"); // Default
     bool newDashed = false;
 
     switch (data.trackingState) {
     case VPI_TRACKING_STATE_TRACKED:
-        newBoxColor = "green";
+        newBoxColor = QColor("green");
         newDashed = false;
         break;
     case VPI_TRACKING_STATE_LOST:
-        newBoxColor = "red";
+        newBoxColor = QColor("red");
         newDashed = true;
         break;
     default:
-        newBoxColor = "yellow";
+        newBoxColor = QColor("yellow");
         newDashed = false;
         break;
     }
@@ -527,6 +478,7 @@ void OsdViewModel::updateFromFrameData(const FrameData &data)
     if (m_trackingConfidence != data.trackingConfidence) {
         m_trackingConfidence = data.trackingConfidence;
         emit trackingConfidenceChanged();
+        emit confidenceLevelChanged();
     }
 
     // ========================================================================
@@ -553,7 +505,7 @@ void OsdViewModel::updateFromFrameData(const FrameData &data)
     bool newZoneWarningVisible = data.isReticleInNoFireZone || data.gimbalStoppedAtNTZLimit;
     if (m_zoneWarningVisible != newZoneWarningVisible) {
         m_zoneWarningVisible = newZoneWarningVisible;
-        emit zoneWarningChanged();
+        emit zoneWarningVisibleChanged();
     }
 
     QString newZoneWarningText;
@@ -567,6 +519,10 @@ void OsdViewModel::updateFromFrameData(const FrameData &data)
         emit zoneWarningTextChanged();
     }
 }
+
+
+
+
 
 // ========================================================================
 // SETTERS FOR DEVICE HEALTH
@@ -725,18 +681,6 @@ void OsdViewModel::setErrorMessage(const QString &message, bool visible)
     if (m_errorMessageVisible != visible) {
         m_errorMessageVisible = visible;
         emit errorMessageVisibleChanged();
-    }
-}
-
-// ========================================================================
-// SETTER FOR VEHICLE HEADING
-// ========================================================================
-
-void OsdViewModel::setVehicleHeading(float heading)
-{
-    if (m_vehicleHeading != heading) {
-        m_vehicleHeading = heading;
-        emit vehicleHeadingChanged();
     }
 }
 

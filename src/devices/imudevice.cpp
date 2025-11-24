@@ -6,9 +6,16 @@
 ImuDevice::ImuDevice(QObject *parent)
     : BaseSerialDevice(parent),
     m_pollTimer(new QTimer(this)),
+    m_communicationWatchdog(new QTimer(this)),
     m_gyroBiasTimer(new QTimer(this))
 {
     connect(m_pollTimer, &QTimer::timeout, this, &ImuDevice::onPollTimer);
+
+    // Configure communication watchdog - single-shot timer
+    m_communicationWatchdog->setSingleShot(true);
+    m_communicationWatchdog->setInterval(COMMUNICATION_TIMEOUT_MS);
+    connect(m_communicationWatchdog, &QTimer::timeout,
+            this, &ImuDevice::onCommunicationWatchdogTimeout);
 
     m_gyroBiasTimer->setSingleShot(true);
     m_gyroBiasTimer->setInterval(GYRO_BIAS_TIMEOUT_MS);
@@ -18,6 +25,7 @@ ImuDevice::ImuDevice(QObject *parent)
 ImuDevice::~ImuDevice()
 {
     m_pollTimer->stop();
+    m_communicationWatchdog->stop();
     m_gyroBiasTimer->stop();
 }
 
@@ -40,8 +48,9 @@ void ImuDevice::processIncomingData()
         m_gyroBiasTimer->stop();
         m_readBuffer.remove(0, 19);  // Clear gyro bias response
 
-        // Start normal polling
+        // Start normal polling and watchdog
         m_pollTimer->start(m_pollIntervalMs);
+        m_communicationWatchdog->start();
         return;
     }
 
@@ -70,6 +79,7 @@ void ImuDevice::onConnectionEstablished()
 void ImuDevice::onConnectionLost()
 {
     m_pollTimer->stop();
+    m_communicationWatchdog->stop();
     m_gyroBiasTimer->stop();
     m_waitingForGyroBias = false;
 
@@ -122,6 +132,7 @@ void ImuDevice::onGyroBiasTimeout()
         logMessage("Gyro bias capture timed out - proceeding anyway");
         m_waitingForGyroBias = false;
         m_pollTimer->start(m_pollIntervalMs);
+        m_communicationWatchdog->start();
     }
 }
 
@@ -155,16 +166,11 @@ void ImuDevice::parseResponse(const QByteArray &response)
         return;
     }
 
-    ImuData newData = currentData();
+    // We received valid data - device is connected
+    setConnectionState(true);
+    resetCommunicationWatchdog();
 
-    // Parse 0xCF response structure (31 bytes total)
-    // Bytes 1-4: Roll (float, big-endian)
-    // Bytes 5-8: Pitch (float, big-endian)
-    // Bytes 9-12: Yaw (float, big-endian)
-    // Bytes 13-16: Angular Rate X (float, big-endian)
-    // Bytes 17-20: Angular Rate Y (float, big-endian)
-    // Bytes 21-24: Angular Rate Z (float, big-endian)
-    // Additional data may follow...
+    ImuData newData = currentData();
 
     auto parseFloat = [](const QByteArray &data, int offset) -> float {
         if (offset + 4 > data.size()) return 0.0f;
@@ -179,16 +185,13 @@ void ImuDevice::parseResponse(const QByteArray &response)
         return value;
     };
 
-    newData.imuRollDeg = parseFloat(response, 1) * (180.0 / M_PI);
-    newData.imuPitchDeg = parseFloat(response, 5) * (180.0 / M_PI);
-    newData.imuYawDeg = parseFloat(response, 9) * (180.0 / M_PI);
+    newData.rollDeg = parseFloat(response, 1) * (180.0 / M_PI);
+    newData.pitchDeg = parseFloat(response, 5) * (180.0 / M_PI);
+    newData.yawDeg = parseFloat(response, 9) * (180.0 / M_PI);
 
     newData.angRateX_dps = parseFloat(response, 13) * (180.0 / M_PI);
     newData.angRateY_dps = parseFloat(response, 17) * (180.0 / M_PI);
     newData.angRateZ_dps = parseFloat(response, 21) * (180.0 / M_PI);
-
-    // Additional fields can be parsed if present in response
-    // For now, acceleration and temperature are not available in 0xCF response
 
     updateImuData(newData);
 }
@@ -207,4 +210,31 @@ void ImuDevice::updateImuData(const ImuData &newData)
     if (dataChanged) {
         emit imuDataChanged(m_currentData);
     }
+}
+
+void ImuDevice::resetCommunicationWatchdog()
+{
+    m_communicationWatchdog->start();
+}
+
+void ImuDevice::setConnectionState(bool connected)
+{
+    ImuData newData = currentData();
+    if (newData.isConnected != connected) {
+        newData.isConnected = connected;
+        updateImuData(newData);
+
+        if (connected) {
+            logMessage("IMU connected");
+        } else {
+            logMessage("IMU disconnected");
+        }
+    }
+}
+
+void ImuDevice::onCommunicationWatchdogTimeout()
+{
+    logMessage(QString("Communication timeout - no valid IMU data received for %1 ms")
+               .arg(COMMUNICATION_TIMEOUT_MS));
+    setConnectionState(false);
 }

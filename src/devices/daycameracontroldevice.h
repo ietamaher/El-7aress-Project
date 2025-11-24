@@ -6,35 +6,35 @@
 #include <QtGlobal>
 #include "baseserialdevice.h"
 
-struct DayCameraData
-{
+struct DayCameraData {
     bool isConnected = false;
     bool errorState = false;
-    quint8 cameraStatus = 0; // e.g. 0x00 (OK) or 0x01 (Error)
+    quint8 cameraStatus = 0;
 
-    // For zoom
+    // Zoom control
     bool zoomMovingIn = false;
     bool zoomMovingOut = false;
     quint16 zoomPosition = 0;   // 14-bit max for VISCA
+
+    // Focus control
     bool autofocusEnabled = true;
     quint16 focusPosition = 0;  // 12-bit max
-    float currentHFOV = 11.0;
 
-    bool operator==(const DayCameraData &other) const {
-        return (
-            isConnected == other.isConnected &&
-            errorState == other.errorState &&
-            cameraStatus == other.cameraStatus &&
-            zoomMovingIn == other.zoomMovingIn &&
-            zoomMovingOut == other.zoomMovingOut &&
-            zoomPosition == other.zoomPosition &&
-            autofocusEnabled == other.autofocusEnabled &&
-            focusPosition == other.focusPosition &&
-            currentHFOV == other.currentHFOV
-            );
-    }
+    // Field of view (Sony FCB-EV7520A: 1280×720 native → 1024×768 cropped, NOT square!)
+    float currentHFOV = 11.0;  // Horizontal FOV (2.3° - 63.7° zoom range)
+    float currentVFOV = 11.0;  // Vertical FOV (calculated from HFOV and aspect ratio)
+
     bool operator!=(const DayCameraData &other) const {
-        return !(*this == other);
+        return (isConnected != other.isConnected ||
+                errorState != other.errorState ||
+                cameraStatus != other.cameraStatus ||
+                zoomMovingIn != other.zoomMovingIn ||
+                zoomMovingOut != other.zoomMovingOut ||
+                zoomPosition != other.zoomPosition ||
+                autofocusEnabled != other.autofocusEnabled ||
+                focusPosition != other.focusPosition ||
+                !qFuzzyCompare(currentHFOV, other.currentHFOV) ||
+                !qFuzzyCompare(currentVFOV, other.currentVFOV));
     }
 };
 

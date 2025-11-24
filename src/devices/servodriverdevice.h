@@ -48,27 +48,30 @@
  * @brief Unified data structure describing all relevant servo states.
  */
 struct ServoData {
-    bool isConnected   = false;   ///< True if device is connected
-    float position     = 0.0f;    ///< Current servo position
-    float rpm          = 0.0f;    ///< Servo RPM
-    float torque       = 0.0f;    ///< Current torque
-    float motorTemp    = 0.0f;    ///< Motor temperature
-    float driverTemp   = 0.0f;    ///< Driver temperature
-    bool fault         = false;   ///< Fault status
+    bool isConnected = false;
+    float position = 0.0f;
+    float rpm = 0.0f;
+    float torque = 0.0f;
+    float motorTemp = 0.0f;
+    float driverTemp = 0.0f;
+    bool fault = false;
 
-    bool operator==(const ServoData &other) const {
-        return (
-            isConnected   == other.isConnected &&
-            position     == other.position    &&
-            rpm          == other.rpm         &&
-            torque       == other.torque      &&
-            motorTemp    == other.motorTemp   &&
-            driverTemp   == other.driverTemp  &&
-            fault        == other.fault
-            );
-    }
+
     bool operator!=(const ServoData &other) const {
-        return !(*this == other);
+        // Use epsilon-based comparison for floating-point values to avoid signal flooding
+        // due to insignificant precision differences
+        const float POSITION_EPSILON = 1.0f;    // 1 encoder count (≈0.0016°, very precise)
+        const float RPM_EPSILON = 1.0f;         // 1 RPM
+        const float TORQUE_EPSILON = 0.1f;      // 0.1% torque
+        const float TEMP_EPSILON = 0.1f;        // 0.1°C
+
+        return (isConnected != other.isConnected ||
+                std::abs(position - other.position) > POSITION_EPSILON ||
+                std::abs(rpm - other.rpm) > RPM_EPSILON ||
+                std::abs(torque - other.torque) > TORQUE_EPSILON ||
+                std::abs(motorTemp - other.motorTemp) > TEMP_EPSILON ||
+                std::abs(driverTemp - other.driverTemp) > TEMP_EPSILON ||
+                fault != other.fault);
     }
 };
 
@@ -194,12 +197,14 @@ private slots:
     void onWriteReady();                     ///< Slot called when write response is received
     void onAlarmReadReady();                 ///< Slot called when alarm status is received
     void onAlarmHistoryReady();              ///< Slot called when alarm history data is received
+    void onCommunicationWatchdogTimeout();
 
 private:
     void initializeAlarmMap();               ///< Populates alarm information table
     void updateServoData(const ServoData &newData); ///< Compares and emits changed data
     void setupTemperatureTimer();            ///< Initializes and manages temperature polling
-
+    void resetCommunicationWatchdog();
+    void setConnectionState(bool connected);
     QString m_identifier;
     ServoData m_currentData;
     uint16_t m_currentAlarmCode = 0;
@@ -221,6 +226,8 @@ private:
     static constexpr int ALARM_HISTORY_REG_COUNT = 20;
     static constexpr int ALARM_RESET_ADDR = 388;
     static constexpr int ALARM_HISTORY_CLEAR_ADDR = 386;
+    QTimer* m_communicationWatchdog;
+    static constexpr int COMMUNICATION_TIMEOUT_MS = 3000;
 };
 
 #endif // SERVODRIVERDEVICE_H

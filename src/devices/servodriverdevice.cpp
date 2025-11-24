@@ -12,13 +12,20 @@ ServoDriverDevice::ServoDriverDevice(const QString &identifier,
                                    QObject *parent)
     : ModbusDeviceBase(device, baudRate, slaveId, parity, parent),
       m_identifier(identifier),
-      m_temperatureTimer(new QTimer(this))
+      m_temperatureTimer(new QTimer(this)),
+      m_communicationWatchdog(new QTimer(this))
 {
     // Initialize alarm map
     initializeAlarmMap();
     
     // Setup temperature timer
     setupTemperatureTimer();
+    
+    // Communication watchdog setup
+    m_communicationWatchdog->setSingleShot(true);
+    m_communicationWatchdog->setInterval(COMMUNICATION_TIMEOUT_MS);
+    connect(m_communicationWatchdog, &QTimer::timeout,
+            this, &ServoDriverDevice::onCommunicationWatchdogTimeout);
     
     // Set servo-specific parameters
     setTimeout(100);  // 100ms timeout for servo
@@ -34,6 +41,9 @@ ServoDriverDevice::~ServoDriverDevice()
 {
     if (m_temperatureTimer) {
         m_temperatureTimer->stop();
+    }
+    if (m_communicationWatchdog) {
+        m_communicationWatchdog->stop();
     }
 }
 
@@ -427,4 +437,30 @@ void ServoDriverDevice::initializeAlarmMap()
     m_alarmMap[0x0005] = {0x0005, "Encoder Error", "Encoder signal abnormal.", "Check encoder wiring, replace encoder.", false};
     m_alarmMap[0x0006] = {0x0006, "Communication Error", "Modbus communication lost.", "Check serial connection, verify baud rate.", true};
     // Add more alarms as needed
+}
+void ServoDriverDevice::resetCommunicationWatchdog()
+{
+    m_communicationWatchdog->start();
+}
+
+void ServoDriverDevice::setConnectionState(bool connected)
+{
+    ServoData newData = m_currentData;
+    if (newData.isConnected != connected) {
+        newData.isConnected = connected;
+        updateServoData(newData);
+
+        if (connected) {
+            emit logMessage(QString("[%1] Servo driver connected").arg(m_identifier));
+        } else {
+            emit logMessage(QString("[%1] Servo driver disconnected").arg(m_identifier));
+        }
+    }
+}
+
+void ServoDriverDevice::onCommunicationWatchdogTimeout()
+{
+    emit logMessage(QString("[%1] Communication timeout - no valid data received for %2 ms")
+                   .arg(m_identifier).arg(COMMUNICATION_TIMEOUT_MS));
+    setConnectionState(false);
 }

@@ -82,6 +82,9 @@ protected:
     void onConnectionEstablished() override;
     void onConnectionLost() override;
 
+private slots:
+    void onCommunicationWatchdogTimeout();
+
 private:
     // LRF-specific methods
     void sendCommand(quint8 commandCode, const QByteArray& params = QByteArray(5, 0x00));
@@ -98,6 +101,8 @@ private:
     void handleProductInfoResponse(const QByteArray &response);
     void handleTemperatureResponse(const QByteArray &response);
     void handleStopRangingResponse(const QByteArray &response);
+    void resetCommunicationWatchdog();
+    void setConnectionState(bool connected);
 
     // Protocol constants
     static const int PACKET_SIZE = 9;
@@ -125,6 +130,8 @@ private:
 
     LrfData m_currentData;         ///< Current state of the LRF device data.
     QTimer *m_statusTimer;         ///< Timer for periodic status checks.
+    QTimer* m_communicationWatchdog;
+    static constexpr int COMMUNICATION_TIMEOUT_MS = 3000;
 };
 
 #endif // LRFDEVICE_H

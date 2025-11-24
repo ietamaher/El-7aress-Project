@@ -164,8 +164,8 @@ void SystemController::initializeSystem()
     connect(m_joystickModel, &JoystickDataModel::hatMoved,
             m_systemStateModel, &SystemStateModel::onJoystickHatChanged);
 
-    connect(m_lensModel,   &LensDataModel::dataChanged,
-            m_systemStateModel, &SystemStateModel::onLensDataChanged);
+    /*connect(m_lensModel,   &LensDataModel::dataChanged,
+            m_systemStateModel, &SystemStateModel::onLensDataChanged);*/
 
     connect(m_lrfModel,   &LrfDataModel::dataChanged,
             m_systemStateModel, &SystemStateModel::onLrfDataChanged);

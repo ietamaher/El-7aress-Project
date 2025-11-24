@@ -8,8 +8,15 @@
 
 LRFDevice::LRFDevice(QObject *parent)
     : BaseSerialDevice(parent),
-      m_statusTimer(new QTimer(this))
+      m_statusTimer(new QTimer(this)),
+      m_communicationWatchdog(new QTimer(this))
 {
+    // Communication watchdog setup
+    m_communicationWatchdog->setSingleShot(true);
+    m_communicationWatchdog->setInterval(COMMUNICATION_TIMEOUT_MS);
+    connect(m_communicationWatchdog, &QTimer::timeout,
+            this, &LRFDevice::onCommunicationWatchdogTimeout);
+
     // A periodic self-check is good practice
     connect(m_statusTimer, &QTimer::timeout, this, &LRFDevice::sendSelfCheck);
 }
@@ -69,18 +76,18 @@ void LRFDevice::processIncomingData()
 void LRFDevice::onConnectionEstablished()
 {
     LrfData newData = m_currentData;
-    newData.isConnected = true;
+    setConnectionState(true);
     updateLrfData(newData);
     logMessage("LRF device connection established.");
     // Start periodic status checks once connected
-    m_statusTimer->start(30000); // every 30 seconds
+    m_statusTimer->start(5000); // every 30 seconds
 }
 
 void LRFDevice::onConnectionLost()
 {
     m_statusTimer->stop();
     LrfData newData = m_currentData;
-    newData.isConnected = false;
+    setConnectionState(false);
     newData.isFault = true; // Assume fault on connection loss
     updateLrfData(newData);
     logMessage("LRF device connection lost.");
@@ -166,6 +173,10 @@ bool LRFDevice::verifyChecksum(const QByteArray &packet) const
 
 void LRFDevice::handleResponse(const QByteArray &response)
 {
+    // We received valid data - reset watchdog
+    setConnectionState(true);
+    resetCommunicationWatchdog();
+    
     quint8 responseCode = static_cast<quint8>(response.at(2)); // Byte 3 is the command code
 
     switch (responseCode) {
@@ -315,4 +326,31 @@ void LRFDevice::updateLrfData(const LrfData &newData)
     if (dataChanged) {
         emit lrfDataChanged(m_currentData);
     }
+}
+
+void LRFDevice::resetCommunicationWatchdog()
+{
+    m_communicationWatchdog->start();
+}
+
+void LRFDevice::setConnectionState(bool connected)
+{
+    LrfData newData = currentData();
+    if (newData.isConnected != connected) {
+        newData.isConnected = connected;
+        updateLrfData(newData);
+
+        if (connected) {
+            logMessage("LRF connected");
+        } else {
+            logMessage("LRF disconnected");
+        }
+    }
+}
+
+void LRFDevice::onCommunicationWatchdogTimeout()
+{
+    logMessage(QString("Communication timeout - no valid LRF data received for %1 ms")
+               .arg(COMMUNICATION_TIMEOUT_MS));
+    setConnectionState(false);
 }

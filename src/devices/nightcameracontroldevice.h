@@ -7,27 +7,36 @@
 // Structure to hold camera data
 struct NightCameraData {
     bool isConnected = false;
-    bool errorState = false;
+    quint8 errorState = 0x00;
     bool ffcInProgress = false;
     bool digitalZoomEnabled = false;
     quint8 digitalZoomLevel = 0;
     double currentHFOV = 10.4;
+    double currentVFOV = 8.0;  // FLIR TAU 2 640×512: Wide 10.4°×8°, Narrow 5.2°×4°
     quint16 videoMode = 0;
+    quint8 lut = 0;
     quint8 cameraStatus = 0;
 
-    bool operator==(const NightCameraData &other) const {
-        return (isConnected == other.isConnected &&
-                errorState == other.errorState &&
-                ffcInProgress == other.ffcInProgress &&
-                digitalZoomEnabled == other.digitalZoomEnabled &&
-                digitalZoomLevel == other.digitalZoomLevel &&
-                currentHFOV == other.currentHFOV &&
-                videoMode == other.videoMode &&
-                cameraStatus == other.cameraStatus);
-    }
-    
+    // Temperature (0x20 READ_TEMP_SENSOR)
+    qint16 fpaTemperature = 0;  // Celsius × 10 (e.g., 325 = 32.5°C)
+
+    // Pan/Tilt for zoom navigation (0x70 PAN_AND_TILT)
+    qint16 panPosition = 0;   // -82 to +82
+    qint16 tiltPosition = 0;  // -68 to +68
+
     bool operator!=(const NightCameraData &other) const {
-        return !(*this == other);
+        return (isConnected != other.isConnected ||
+                errorState != other.errorState ||
+                ffcInProgress != other.ffcInProgress ||
+                digitalZoomEnabled != other.digitalZoomEnabled ||
+                digitalZoomLevel != other.digitalZoomLevel ||
+                !qFuzzyCompare(currentHFOV, other.currentHFOV) ||
+                !qFuzzyCompare(currentVFOV, other.currentVFOV) ||
+                videoMode != other.videoMode ||
+                cameraStatus != other.cameraStatus ||
+                fpaTemperature != other.fpaTemperature ||
+                panPosition != other.panPosition ||
+                tiltPosition != other.tiltPosition);
     }
 };
 
@@ -64,6 +73,7 @@ protected:
     int getReconnectDelayMs(int attempt) const override { return 2000 + (attempt * 1000); }
 
 private slots:
+    void onCommunicationWatchdogTimeout();
     void checkCameraStatus();
 
 private:
@@ -82,11 +92,14 @@ private:
 
     // Data management
     void updateNightCameraData(const NightCameraData &newData);
-
+    void resetCommunicationWatchdog();
+    void setConnectionState(bool connected);
     // Member variables
     NightCameraData m_currentData;
     QTimer *m_statusCheckTimer = nullptr;
     static const int m_statusCheckIntervalMs = 5000;
+    QTimer* m_communicationWatchdog;
+    static constexpr int COMMUNICATION_TIMEOUT_MS = 10000;
 };
 
 #endif // NIGHTCAMERACONTROLDEVICE_H

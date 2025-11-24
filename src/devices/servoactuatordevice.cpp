@@ -73,9 +73,17 @@ bool ServoActuatorData::operator!=(const ServoActuatorData &other) const {
 //================================================================================
 
 ServoActuatorDevice::ServoActuatorDevice(QObject *parent)
-    : BaseSerialDevice(parent), m_timeoutTimer(new QTimer(this)) {
-    // Constructor is now very clean
+    : BaseSerialDevice(parent), 
+      m_timeoutTimer(new QTimer(this)),
+      m_communicationWatchdog(new QTimer(this))
+{
     connect(m_timeoutTimer, &QTimer::timeout, this, &ServoActuatorDevice::handleTimeout);
+    
+    // Communication watchdog setup
+    m_communicationWatchdog->setSingleShot(true);
+    m_communicationWatchdog->setInterval(COMMUNICATION_TIMEOUT_MS);
+    connect(m_communicationWatchdog, &QTimer::timeout,
+            this, &ServoActuatorDevice::onCommunicationWatchdogTimeout);
 }
 
 //================================================================================
@@ -91,19 +99,16 @@ void ServoActuatorDevice::configureSerialPort() {
 }
 
 void ServoActuatorDevice::onConnectionEstablished() {
-    m_currentData.isConnected = true;
-    emit actuatorDataChanged(m_currentData);
+    setConnectionState(true);
     logMessage("Servo actuator connected. Machine Mode 2.");
-
-
+    m_communicationWatchdog->start();
 }
 
 void ServoActuatorDevice::onConnectionLost() {
-    m_currentData.isConnected = false;
-    emit actuatorDataChanged(m_currentData);
+    m_communicationWatchdog->stop();
+    setConnectionState(false);
     logMessage("Servo actuator disconnected.");
 }
-
 //================================================================================
 // Public Interface Methods
 //================================================================================
@@ -216,7 +221,8 @@ void ServoActuatorDevice::processIncomingData() {
                          .arg(response, calculatedChecksum));
             continue; // Discard corrupted data
         }
-
+        setConnectionState(true);
+        resetCommunicationWatchdog();
         // If we reach here, the response is valid.
         m_timeoutTimer->stop();
         ServoActuatorData newData = m_currentData;
@@ -343,4 +349,29 @@ int ServoActuatorDevice::torquePercentToSensorCounts(double percent) const {
     return static_cast<int>(round((percent / 100.0) * 32767.0));
 }
 
+void ServoActuatorDevice::resetCommunicationWatchdog()
+{
+    m_communicationWatchdog->start();
+}
 
+void ServoActuatorDevice::setConnectionState(bool connected)
+{
+    ServoActuatorData newData = m_currentData;
+    if (newData.isConnected != connected) {
+        newData.isConnected = connected;
+        updateActuatorData(newData);
+
+        if (connected) {
+            logMessage("Servo actuator connected");
+        } else {
+            logMessage("Servo actuator disconnected");
+        }
+    }
+}
+
+void ServoActuatorDevice::onCommunicationWatchdogTimeout()
+{
+    logMessage(QString("Communication timeout - no valid actuator data received for %1 ms")
+               .arg(COMMUNICATION_TIMEOUT_MS));
+    setConnectionState(false);
+}
