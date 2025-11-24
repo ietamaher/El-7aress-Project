@@ -18,6 +18,8 @@
 #include <QSlider>
 #include <QLabel>
 #include <QQuickView>
+#include <QQmlContext>
+#include <QUrl>
 #include "videoimageprovider.h"
 #include "../viewmodels/osdviewmodel.h"
 
