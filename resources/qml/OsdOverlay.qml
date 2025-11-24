@@ -5,7 +5,7 @@ Item {
     id: osdRoot
     anchors.fill: parent
 
-    property var viewModel: osdViewModel // Context property from C++
+    property var viewModel: osdViewModelInstance // Context property from C++ (exposed as osdViewModelInstance)
 
     // ========================================================================
     // COLOR THEME

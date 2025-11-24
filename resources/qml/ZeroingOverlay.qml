@@ -12,7 +12,7 @@ Rectangle {
     border.width: 1
     border.color: "#1A1A1A"
     visible: zeroingViewModel ? zeroingViewModel.visible : false
-    property color accentColor: zeroingViewModel ? zeroingViewModel.accentColor : "#46E2A5"
+    property color accentColor: "#46E2A5"  // Fixed green accent color
 
     layer.enabled: true
     layer.effect: MultiEffect {

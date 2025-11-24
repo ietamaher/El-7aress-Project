@@ -360,7 +360,7 @@ Rectangle {
                 id: zoneMap
                 Layout.fillWidth: true
                 Layout.preferredHeight: 250
-                visible: viewModel ? viewModel.showMap : true
+                visible: true
                 viewModel: mapViewModel
             }
 
