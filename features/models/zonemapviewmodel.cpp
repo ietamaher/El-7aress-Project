@@ -1,5 +1,5 @@
 #include "zonemapviewmodel.h"
-#include "models/domain/systemstatemodel.h"
+#include "models/systemstatemodel.h"
 #include <QtMath>
 
 ZoneMapViewModel::ZoneMapViewModel(QObject *parent)

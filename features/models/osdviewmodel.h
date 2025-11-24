@@ -6,7 +6,7 @@
 #include <QRectF>
 #include <QString>
 #include <QVariantList>
-#include "models/domain/systemstatedata.h" // For enums
+#include "models/systemstatedata.h" // For enums
 #include "utils/inference.h" // For YoloDetection
 
 class OsdViewModel : public QObject

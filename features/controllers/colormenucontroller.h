@@ -3,8 +3,8 @@
 
 #include <QObject>
 #include <QColor>
-#include "models/menuviewmodel.h"
-#include "models/domain/systemstatedata.h"
+#include "../models/menuviewmodel.h"
+#include "models/systemstatedata.h"
 
 class OsdViewModel;
 class SystemStateModel;

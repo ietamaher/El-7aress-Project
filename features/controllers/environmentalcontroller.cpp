@@ -1,6 +1,6 @@
 #include "environmentalcontroller.h"
-#include "models/environmentalviewmodel.h"
-#include "models/domain/systemstatemodel.h"
+#include "../models/environmentalviewmodel.h"
+#include "models/systemstatemodel.h"
 #include <QDebug>
 
 EnvironmentalController::EnvironmentalController(QObject *parent)

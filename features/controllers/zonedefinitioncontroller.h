@@ -2,7 +2,7 @@
 #define ZONEDEFINITIONCONTROLLER_H
 
 #include <QObject>
-#include "models/domain/systemstatedata.h"
+#include "models/systemstatedata.h"
 
 class ZoneDefinitionViewModel;
 class ZoneMapViewModel;

@@ -1,6 +1,6 @@
 #include "windagecontroller.h"
-#include "models/windageviewmodel.h"
-#include "models/domain/systemstatemodel.h"
+#include "../models/windageviewmodel.h"
+#include "models/systemstatemodel.h"
 #include <QDebug>
 
 WindageController::WindageController(QObject *parent)

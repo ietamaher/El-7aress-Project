@@ -1,6 +1,6 @@
 #include "zeroingcontroller.h"
-#include "models/zeroingviewmodel.h"
-#include "models/domain/systemstatemodel.h"
+#include "../models/zeroingviewmodel.h"
+#include "models/systemstatemodel.h"
 #include <QDebug>
 
 ZeroingController::ZeroingController(QObject *parent)

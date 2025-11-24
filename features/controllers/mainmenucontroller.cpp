@@ -1,7 +1,7 @@
-#include "controllers/mainmenucontroller.h"
-#include "models/menuviewmodel.h"
-#include "models/osdviewmodel.h"
-#include "models/domain/systemstatemodel.h"
+#include "mainmenucontroller.h"
+#include "../models/menuviewmodel.h"
+#include "../models/osdviewmodel.h"
+#include "models/systemstatemodel.h"
 #include <QDebug>
 
 MainMenuController::MainMenuController(QObject *parent)

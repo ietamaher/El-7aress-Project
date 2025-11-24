@@ -1,7 +1,7 @@
 #include "osdcontroller.h"
-#include "models/osdviewmodel.h"
-#include "models/domain/systemstatemodel.h"
-#include "hardware/devices/cameravideostreamdevice.h"
+#include "../models/osdviewmodel.h"
+#include "models/systemstatemodel.h"
+#include "../../src/devices/cameravideostreamdevice.h"
 #include <QDebug>
 
 OsdController::OsdController(QObject *parent)

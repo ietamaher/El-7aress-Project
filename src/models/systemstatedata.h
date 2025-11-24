@@ -75,6 +75,10 @@ enum class ReticleType {
     StandardCrosshair,  ///< Standard military crosshair
     PrecisionCrosshair, ///< High-precision crosshair with fine markings
     MilDot,            ///< Military dot reticle for range estimation
+    BracketsReticle,    ///< Corner brackets style with crosshair (Enhanced visibility)
+    DuplexCrosshair,    ///< Thick outer, thin inner crosshair (Sniper/precision style)
+    FineCrosshair,      ///< Thin precision crosshair with range ticks (Long range)
+    ChevronReticle,     ///< Downward pointing chevron with holdover marks (CQB style)
     COUNT              ///< Total number of reticle types (for iteration)
 };
 

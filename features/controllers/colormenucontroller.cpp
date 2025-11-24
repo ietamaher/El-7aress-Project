@@ -1,6 +1,6 @@
-#include "controllers/colormenucontroller.h"
-#include "models/osdviewmodel.h"
-#include "models/domain/systemstatemodel.h"
+#include "colormenucontroller.h"
+#include "../models/osdviewmodel.h"
+#include "models/systemstatemodel.h"
 #include <QDebug>
 
 ColorMenuController::ColorMenuController(QObject *parent)

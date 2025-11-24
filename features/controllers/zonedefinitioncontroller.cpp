@@ -1,10 +1,10 @@
 #include "zonedefinitioncontroller.h"
-#include "models/zonedefinitionviewmodel.h"
-#include "models/zonemapviewmodel.h"
-#include "models/areazoneparameterviewmodel.h"
-#include "models/sectorscanparameterviewmodel.h"
-#include "models/trpparameterviewmodel.h"
-#include "models/domain/systemstatemodel.h"
+#include "../models/zonedefinitionviewmodel.h"
+#include "../models/zonemapviewmodel.h"
+#include "../models/areazoneparameterviewmodel.h"
+#include "../models/sectorscanparameterviewmodel.h"
+#include "../models/trpparameterviewmodel.h"
+#include "models/systemstatemodel.h"
 #include <QDebug>
 #include <algorithm>
 

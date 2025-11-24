@@ -1,6 +1,6 @@
 #include "aboutcontroller.h"
-#include "models/aboutviewmodel.h"
-#include "models/domain/systemstatemodel.h"
+#include "../models/aboutviewmodel.h"
+#include "models/systemstatemodel.h"
 #include <QDebug>
 
 AboutController::AboutController(QObject *parent)
