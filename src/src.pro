@@ -55,6 +55,9 @@ LIBS += -L/usr/local/lib -lopencv_core -lopencv_imgcodecs -lopencv_highgui -lope
 LIBS += -L/usr/local/lib -lopencv_core   -lopencv_dnn -lopencv_videoio
 PKGCONFIG += gstreamer-gl-1.0
 
+INCLUDEPATH += /usr/local/cuda/include
+LIBS += -L/usr/local/cuda/lib64 -lcudart
+
 # Additional import path used to resolve QML modules in Qt Creator's code model
 QML_IMPORT_PATH = qml
 

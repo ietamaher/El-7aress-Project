@@ -389,11 +389,14 @@ public:
                                  float width_px, float height_px,
                                  float velocityX_px_s, float velocityY_px_s,
                                  VPITrackingState state);*/
-    void updateTrackingResult(int cameraIndex, bool hasLock,
-                              float centerX_px, float centerY_px,
-                              float width_px, float height_px,
-                              float velocityX_px_s, float velocityY_px_s,
-                              VPITrackingState state);
+    void updateTrackingResult(
+                int cameraIndex,
+                bool hasLock, // This parameter might become less relevant as we use VPITrackingState directly
+                float centerX_px, float centerY_px,
+                float width_px, float height_px,
+                float velocityX_px_s, float velocityY_px_s,
+                VPITrackingState trackerState,
+                float confidence);
  
 
     virtual void startTrackingAcquisition();

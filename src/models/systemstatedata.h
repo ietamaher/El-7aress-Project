@@ -682,13 +682,17 @@ struct SystemStateData {
                currentTRPScanName == other.currentTRPScanName &&
                isReticleInNoFireZone == other.isReticleInNoFireZone &&
                isReticleInNoTraverseZone == other.isReticleInNoTraverseZone &&
+               
+               // Camera Systems - Day Camera
                qFuzzyCompare(dayZoomPosition, other.dayZoomPosition) &&
                qFuzzyCompare(dayCurrentHFOV, other.dayCurrentHFOV) &&
+               qFuzzyCompare(dayCurrentVFOV, other.dayCurrentVFOV) && 
                dayCameraConnected == other.dayCameraConnected &&
                dayCameraError == other.dayCameraError &&
                dayCameraStatus == other.dayCameraStatus &&
                dayAutofocusEnabled == other.dayAutofocusEnabled &&
                dayFocusPosition == other.dayFocusPosition &&
+               
                // Camera Systems - Night Camera
                qFuzzyCompare(nightZoomPosition, other.nightZoomPosition) &&
                qFuzzyCompare(nightCurrentHFOV, other.nightCurrentHFOV) &&

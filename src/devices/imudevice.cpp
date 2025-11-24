@@ -179,13 +179,13 @@ void ImuDevice::parseResponse(const QByteArray &response)
         return value;
     };
 
-    newData.imuRollDeg = parseFloat(response, 1);
-    newData.imuPitchDeg = parseFloat(response, 5);
-    newData.imuYawDeg = parseFloat(response, 9);
+    newData.imuRollDeg = parseFloat(response, 1) * (180.0 / M_PI);
+    newData.imuPitchDeg = parseFloat(response, 5) * (180.0 / M_PI);
+    newData.imuYawDeg = parseFloat(response, 9) * (180.0 / M_PI);
 
-    newData.angRateX_dps = parseFloat(response, 13);
-    newData.angRateY_dps = parseFloat(response, 17);
-    newData.angRateZ_dps = parseFloat(response, 21);
+    newData.angRateX_dps = parseFloat(response, 13) * (180.0 / M_PI);
+    newData.angRateY_dps = parseFloat(response, 17) * (180.0 / M_PI);
+    newData.angRateZ_dps = parseFloat(response, 21) * (180.0 / M_PI);
 
     // Additional fields can be parsed if present in response
     // For now, acceleration and temperature are not available in 0xCF response

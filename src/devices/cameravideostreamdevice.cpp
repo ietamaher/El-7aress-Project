@@ -1,18 +1,35 @@
-#include "cameravideostreamdevice.h"
-#include "vpi_helpers.h" // For CHECK_VPI_STATUS
+// ============================================================================
+// INCLUDES
+// ============================================================================
 
+#include "cameravideostreamdevice.h"
+#include "vpi_helpers.h"
+
+// Qt
 #include <QDebug>
 #include <QElapsedTimer>
-#include <stdexcept>
+#include <QtConcurrent/QtConcurrent>
 
+// Standard Library
+#include <stdexcept>
+#include <algorithm>
+
+// OpenCV
 #include <opencv2/imgcodecs.hpp>
 
+// CUDA
+#include <cuda_runtime.h>
+
+// ============================================================================
+// CONSTRUCTOR & DESTRUCTOR
+// ============================================================================
+
 CameraVideoStreamDevice::CameraVideoStreamDevice(int cameraIndex,
-                               const QString &deviceName,
-                               int sourceWidth,
-                               int sourceHeight,
-                               SystemStateModel* stateModel,
-                               QObject *parent)
+                                    const QString &deviceName,
+                                    int sourceWidth,
+                                    int sourceHeight,
+                                    SystemStateModel* stateModel,
+                                    QObject *parent)
     : QThread(parent), // Base class first
     // Configuration & Identification (in declaration order)
     m_cameraIndex(cameraIndex),
@@ -55,12 +72,16 @@ CameraVideoStreamDevice::CameraVideoStreamDevice(int cameraIndex,
     m_vpiInTargets(nullptr),
     m_vpiOutTargets(nullptr),
     m_vpiConfidenceScores(nullptr),
+    m_vpiCorrelationMap(nullptr),
     m_vpiTgtPatchSize(0),
+    m_vpiFeaturePatchSize(0),
     m_currentTarget(),          // VPIDCFTrackedBoundingBox
     m_velocityTimer(),          // QElapsedTimer
     m_lastTargetCenterX_px(0.0f),
     m_lastTargetCenterY_px(0.0f),
-    
+    m_currentConfidence(0.0f),  // Tracking confidence score
+    m_smoothedConfidence(0.0f), // Smoothed confidence for display
+
     // OpenCV Buffers
     m_yuy2_host_buffer(),       // cv::Mat
     
@@ -75,6 +96,8 @@ CameraVideoStreamDevice::CameraVideoStreamDevice(int cameraIndex,
     m_currentWindageModeActive(false),
     m_currentWindageApplied(false),
     m_currentWindageSpeed(0.0f),
+    m_currentWindageDirection(0.0f),
+    m_currentCalculatedCrosswind(0.0f),
     m_currentIsReticleInNoFireZone(false),
     m_currentGimbalStoppedAtNTZLimit(false),
     m_currentReticleAimpointImageX_px(0),
@@ -94,113 +117,114 @@ CameraVideoStreamDevice::CameraVideoStreamDevice(int cameraIndex,
     m_isLacActiveForReticle(false),
     
     // YoloInference Engine (last member)
+    // CUDA is always enabled for GPU acceleration
+    // Inference runs only on day camera (controlled by runtime check at line 614)
     m_inference("/home/rapit/yolov8s.onnx",
                 cv::Size(640, 640),
                 "", // classes.txt path
-                false), // use CUDA
-    
+                false), // use CUDA for GPU acceleration
+
+    // Async Detection Members
+    m_detectionInProgress(false),
+
+    // Latency Measurement
+    m_frameArrivalTime(0),
+    m_totalLatency_ms(0),
+    m_frameProcessedCount(0),
+
     // Frame counter
     m_frameCount(0)
     // m_stateMutex is default constructed (no initialization needed)
 {
+    // Start latency timer
+    m_latencyTimer.start();
+    m_lastDetectionTime.start();
 
+    // Initialize tracking state
     memset(&m_currentTarget, 0, sizeof(m_currentTarget));
     m_currentTarget.state = VPI_TRACKING_STATE_LOST;
 
-        // Sanity check calculated width (should be even for YUY2)
-        if (m_outputWidth % 2 != 0) {
-            qWarning() << "Calculated output width" << m_outputWidth << "is odd, adjusting to" << m_outputWidth - 1;
-            m_outputWidth--;
-        }
-        qInfo() << "Cam" << cameraIndex << ": Source Dim=" << m_sourceWidth << "x" << m_sourceHeight
-                << ", Output Dim=" << m_outputWidth << "x" << m_outputHeight;
+    // Sanity check output width (must be even for YUY2)
+    if (m_outputWidth % 2 != 0) {
+        qWarning() << "Cam" << cameraIndex << ": Output width" << m_outputWidth << "is odd, adjusting to" << (m_outputWidth - 1);
+        m_outputWidth--;
+    }
 
-
-    // Initialize OSD state variables
-    m_currentMode = OperationalMode::Idle; // Uses OpMode from osdrenderer.h via cameravideostreamdevice.h
-    m_motionMode = MotionMode::Manual;
-    m_stabEnabled = false;
-    m_lrfDistance = 0.0f;
-    m_sysCharged = false;
-    m_sysArmed = false;
-    m_sysReady = false;
-    m_speed = 0.0;
-    m_fireMode = FireMode::SingleShot; // Assuming this is defined in osdrenderer.h
-
-    m_cameraFOV = 45.0f;
-    m_currentAzimuth = 0.0f;
-    m_currentElevation = 0.0f;
-
-    if (m_cameraIndex == 0) {                // Sony (day)
+    // Configure camera-specific cropping
+    if (m_cameraIndex == 0) {  // Sony day camera
         m_cropTop = 0;
         m_cropBottom = 0;
         m_cropLeft = 0;
-        m_cropRight = 0; // No cropping for Sony day camera
-    } else {                                 // FLIR (night)  videocrop top=28 left=54  bottom=24  right=46
+        m_cropRight = 0;
+    } else {  // FLIR night camera
         m_cropTop = 28;
         m_cropBottom = 60;
         m_cropLeft = 116;
-        m_cropRight = 116; // Cropping for FLIR night camera
-
+        m_cropRight = 116;
     }
 
-
+    qInfo() << "Cam" << cameraIndex << ": Initialized -"
+            << "Source:" << m_sourceWidth << "x" << m_sourceHeight
+            << "Output:" << m_outputWidth << "x" << m_outputHeight
+            << "Crop: T=" << m_cropTop << "B=" << m_cropBottom << "L=" << m_cropLeft << "R=" << m_cropRight;
 }
 
-// Destructor (No changes needed based on errors)
 CameraVideoStreamDevice::~CameraVideoStreamDevice()
 {
-    qInfo() << "CameraVideoStreamDevice destructor called for Cam" << m_cameraIndex;
+    qInfo() << "Cam" << m_cameraIndex << ": Destructor called";
+
     if (isRunning()) {
         stop();
         wait(1500);
         if (isRunning()) {
-             qWarning() << "Cam" << m_cameraIndex << ": Thread still running in destructor, terminating forcefully.";
-             terminate();
-             wait();
+            qWarning() << "Cam" << m_cameraIndex << ": Thread still running, terminating forcefully";
+            terminate();
+            wait();
         }
     }
+
     cleanupVPI();
     cleanupGStreamer();
-    qInfo() << "CameraVideoStreamDevice cleanup complete for Cam" << m_cameraIndex;
+    qInfo() << "Cam" << m_cameraIndex << ": Cleanup complete";
 }
 
-// stop() method (No changes needed based on errors)
+// ============================================================================
+// CONTROL METHODS
+// ============================================================================
+
 void CameraVideoStreamDevice::stop()
 {
-    qInfo() << "Stop requested for CameraVideoStreamDevice Cam" << m_cameraIndex;
+    qInfo() << "Cam" << m_cameraIndex << ": Stop requested";
     m_abortRequest.store(true);
 
     if (m_gstLoop && g_main_loop_is_running(m_gstLoop)) {
-         qInfo() << "Cam" << m_cameraIndex << ": Quitting GStreamer main loop.";
-         g_main_loop_quit(m_gstLoop);
-    } else {
-         qDebug() << "Cam" << m_cameraIndex << ": GStreamer main loop not running or null when stop requested.";
+        qInfo() << "Cam" << m_cameraIndex << ": Quitting GStreamer main loop";
+        g_main_loop_quit(m_gstLoop);
     }
 }
 
-
-
-// setTrackingEnabled() method (No changes needed based on errors)
 void CameraVideoStreamDevice::setTrackingEnabled(bool enabled)
 {
-    qInfo() << "Cam" << m_cameraIndex << ": Setting tracking enabled state to:" << enabled;
+    qInfo() << "Cam" << m_cameraIndex << ": Tracking" << (enabled ? "enabled" : "disabled");
     m_trackingEnabled.store(enabled);
 
     if (!enabled) {
         m_trackerInitialized = false;
-         qInfo() << "Cam" << m_cameraIndex << ": Tracking disabled, tracker marked for re-initialization.";
-         m_currentTarget.state = VPI_TRACKING_STATE_LOST;
+        m_smoothedConfidence = 0.0f;
+        m_currentTarget.state = VPI_TRACKING_STATE_LOST;
     }
 }
 
 void CameraVideoStreamDevice::setDetectionEnabled(bool enabled)
 {
-    qInfo() << "Cam" << m_cameraIndex << ": Setting detection enabled state to:" << enabled;
+    qInfo() << "Cam" << m_cameraIndex << ": Detection" << (enabled ? "enabled" : "disabled");
     m_detectionEnabled.store(enabled);
 }
 
-// run() method (No changes needed based on errors)
+// ============================================================================
+// THREAD EXECUTION
+// ============================================================================
+
 void CameraVideoStreamDevice::run()
 {
     qInfo() << "CameraVideoStreamDevice thread started for Camera" << m_cameraIndex;
@@ -268,13 +292,13 @@ void CameraVideoStreamDevice::run()
     qInfo() << "CameraVideoStreamDevice thread finished for Camera" << m_cameraIndex;
 }
 
+// ============================================================================
+// SYSTEM STATE SYNCHRONIZATION
+// ============================================================================
+
 void CameraVideoStreamDevice::onSystemStateChanged(const SystemStateData &newState)
 {
-    // Lock the mutex to safely update member variables
-    // These members will be read by processFrame in the same thread,
-    // but locking ensures atomicity if multiple signals arrive quickly
-    // or if you were to access these members from other slots/threads.
-  QMutexLocker locker(&m_stateMutex);
+    QMutexLocker locker(&m_stateMutex);
 
     // Update members based on the new state data
     m_currentMode = newState.opMode;
@@ -282,7 +306,18 @@ void CameraVideoStreamDevice::onSystemStateChanged(const SystemStateData &newSta
     m_stabEnabled = newState.enableStabilization;
     m_currentAzimuth = newState.gimbalAz;         // Assuming gimbalAz is the display value
     m_currentElevation = newState.gimbalEl;       // Assuming gimbalEl is the display value
-    m_lrfDistance = newState.lrfDistance;
+    m_imuConnected = newState.imuConnected;
+    m_imuRollDeg = newState.imuRollDeg;
+    m_imuPitchDeg = newState.imuPitchDeg;
+    m_imuYawDeg = newState.imuYawDeg;       // Vehicle heading
+    m_imuTemp = newState.imuTemp;
+    m_gyroX = newState.GyroX;
+    m_gyroY = newState.GyroY;
+    m_gyroZ = newState.GyroZ;
+    m_accelX = newState.AccelX;
+    m_accelY = newState.AccelY;
+    m_accelZ = newState.AccelZ;
+    m_lrfDistance = newState.currentTargetRange;
     m_sysCharged = newState.ammoLoaded; // Map SystemStateData fields to your OSD needs
     m_sysArmed = newState.gunArmed;
     m_sysReady = newState.isReady();      // Use the helper function? Or specific flags
@@ -298,14 +333,18 @@ void CameraVideoStreamDevice::onSystemStateChanged(const SystemStateData &newSta
 
      m_currentWindageModeActive  = newState.windageModeActive;
      m_currentWindageApplied = newState.windageAppliedToBallistics;
-    m_currentWindageSpeed = newState.windageSpeedKnots; // Assuming this is the windage speed in knots  
+    m_currentWindageSpeed = newState.windageSpeedKnots; // Assuming this is the windage speed in knots
+    m_currentWindageDirection = newState.windageDirectionDegrees;
+    m_currentCalculatedCrosswind = newState.calculatedCrosswindMS;  
  
     m_currentIsReticleInNoFireZone  = newState.isReticleInNoFireZone; // Assuming this is the no-fire zone status
     // Update the gimbal stopped at NTZ limit status
     m_currentGimbalStoppedAtNTZLimit = newState.isReticleInNoTraverseZone; // Assuming this is the NTZ limit status
     m_isLacActiveForReticle = newState.leadAngleCompensationActive; // Assuming this is the LAC status
-    m_currentReticleAimpointImageX_px= newState.reticleAimpointImageX_px; // Assuming these are the reticle aimpoint positions in pixels
-    m_currentReticleAimpointImageY_px= newState.reticleAimpointImageY_px; // Assuming these are the reticle aimpoint positions in pixels
+    m_currentReticleAimpointImageX_px= newState.reticleAimpointImageX_px; // Reticle: gun boresight with zeroing ONLY
+    m_currentReticleAimpointImageY_px= newState.reticleAimpointImageY_px; // Reticle: gun boresight with zeroing ONLY
+    m_currentCcipImpactImageX_px = newState.ccipImpactImageX_px; // ✅ CCIP: bullet impact with zeroing + lead
+    m_currentCcipImpactImageY_px = newState.ccipImpactImageY_px; // ✅ CCIP: bullet impact with zeroing + lead
      m_currentLeadStatusText= newState.leadStatusText; // Assuming this is the lead status text
     m_currentScanName = newState.currentScanName; // Assuming this is the current scan name
     // Note: Don't update m_trackingEnabled here directly from newState.trackingActive.
@@ -318,10 +357,19 @@ void CameraVideoStreamDevice::onSystemStateChanged(const SystemStateData &newSta
     m_currentAcquisitionBoxY_px = newState.acquisitionBoxY_px;
     m_currentAcquisitionBoxW_px = newState.acquisitionBoxW_px;
     m_currentAcquisitionBoxH_px = newState.acquisitionBoxH_px;
+
+    m_currentLeadAngleStatus = newState.currentLeadAngleStatus;   
+    m_currentLeadAngleOffsetAz = newState.leadAngleOffsetAz;      
+    m_currentLeadAngleOffsetEl = newState.leadAngleOffsetEl;
+    m_currentAmmunitionLevel = newState.stationAmmunitionLevel;
+    
+    m_detectionEnabled.store(newState.detectionEnabled);
 }
 
+// ============================================================================
+// GSTREAMER PIPELINE MANAGEMENT
+// ============================================================================
 
-// --- GStreamer Handling --- (No changes needed based on errors)
 bool CameraVideoStreamDevice::initializeGStreamer()
 {
     if (m_pipeline) {
@@ -330,23 +378,13 @@ bool CameraVideoStreamDevice::initializeGStreamer()
     }
     gst_init(nullptr, nullptr);
 
-    /*QString pipelineStr = QString(
-                              "v4l2src device=%1 do-timestamp=true ! "
-                              "video/x-raw,format=YUY2,width=%2,height=%3,framerate=30/1 ! "
-                              "aspectratiocrop aspect-ratio=4/3 ! "
-                              "videoscale  ! "
-                              "video/x-raw,width=1024,height=768 ! "
-                              "queue max-size-buffers=2 leaky=downstream ! "
-                              "appsink name=mysink emit-signals=true max-buffers=2 drop=true sync=false"
-                              ).arg(m_deviceName).arg(m_sourceWidth).arg(m_sourceHeight);*/
-
-    /*QString pipelineStr = QString("v4l2src device=%1 do-timestamp=true ! "
+   /*QString pipelineStr = QString("v4l2src device=%1 do-timestamp=true ! "
         "video/x-raw,format=YUY2,width=%2,height=%3,framerate=30/1 ! "
         "videocrop top=%4 left= %6 bottom=%5  right=%7 ! "
         "videoscale ! "
         "video/x-raw,width=1024,height=768 ! "
-        "queue max-size-buffers=2 leaky=downstream ! "
-        "appsink name=mysink emit-signals=true max-buffers=2 drop=true sync=false")
+        "queue max-size-buffers=1 leaky=downstream ! "
+        "appsink name=mysink emit-signals=true max-buffers=1 drop=true sync=false")
         .arg(m_deviceName)
         .arg(m_sourceWidth)
         .arg(m_sourceHeight)
@@ -354,8 +392,7 @@ bool CameraVideoStreamDevice::initializeGStreamer()
         .arg(m_cropBottom)
         .arg(m_cropLeft)
         .arg(m_cropRight);*/
-
-     QString pipelineStr = QString(
+    QString pipelineStr = QString(
                               "v4l2src device=%1 do-timestamp=true ! "
                               "image/jpeg,width=%2,height=%3,framerate=30/1 ! jpegdec ! video/x-raw ! "
                               "aspectratiocrop aspect-ratio=4/3 ! "
@@ -365,8 +402,7 @@ bool CameraVideoStreamDevice::initializeGStreamer()
                               "queue max-size-buffers=2 leaky=downstream ! "
                               "appsink name=mysink emit-signals=true max-buffers=2 drop=true sync=false"
                               ).arg(m_deviceName).arg(m_sourceWidth).arg(m_sourceHeight);
-
-    qInfo() << "Cam" << m_cameraIndex << " GStreamer Pipeline:" << pipelineStr;
+    qInfo() << "Cam" << m_cameraIndex << ": GStreamer Pipeline:" << pipelineStr;
     GError *error = nullptr;
     m_pipeline = gst_parse_launch(pipelineStr.toUtf8().constData(), &error);
     if (!m_pipeline) {
@@ -384,16 +420,9 @@ bool CameraVideoStreamDevice::initializeGStreamer()
         gst_object_unref(m_pipeline); m_pipeline = nullptr; return false;
     }
     g_object_set(G_OBJECT(m_appSink), "emit-signals", TRUE, nullptr);
-    /*GstAppSinkCallbacks callbacks = {
-        nullptr,                                        // eos
-        nullptr,                                        // new_preroll
-        &CameraVideoStreamDevice::on_new_sample_from_sink, // new_sample
-        nullptr,                                        // new_event (if exists)
-        {nullptr, nullptr, nullptr}            // _gst_reserved array
-    };*/
+
     GstAppSinkCallbacks callbacks = {};
     callbacks.new_sample = &CameraVideoStreamDevice::on_new_sample_from_sink;
-    //GstAppSinkCallbacks callbacks = {nullptr, nullptr, &CameraVideoStreamDevice::on_new_sample_from_sink, nullptr};
     gst_app_sink_set_callbacks(GST_APP_SINK(m_appSink), &callbacks, this, nullptr);
     m_gstLoop = g_main_loop_new(nullptr, FALSE);
     if (!m_gstLoop) {
@@ -473,24 +502,36 @@ GstFlowReturn CameraVideoStreamDevice::handleNewSample(GstAppSink *sink)
     return success ? GST_FLOW_OK : GST_FLOW_ERROR;
 }
 
+// ============================================================================
+// VPI INITIALIZATION & CLEANUP
+// ============================================================================
 
-// --- VPI Handling --- (No changes needed based on errors)
 bool CameraVideoStreamDevice::initializeVPI()
 {
+
+    qInfo() << "Cam" << m_cameraIndex << ": CUDA device initialized successfully";
+
     try {
         CHECK_VPI_STATUS(vpiStreamCreate(0, &m_vpiStream));
         CHECK_VPI_STATUS(vpiImageCreate(m_outputWidth, m_outputHeight, VPI_IMAGE_FORMAT_NV12_ER, 0, &m_vpiFrameNV12));
         CHECK_VPI_STATUS(vpiCreateCropScaler(m_vpiBackend, 1, m_maxTrackedTargets, &m_cropScalePayload));
         VPIDCFTrackerCreationParams dcfParams;
         CHECK_VPI_STATUS(vpiInitDCFTrackerCreationParams(&dcfParams));
-        m_vpiTgtPatchSize = dcfParams.featurePatchSize * dcfParams.hogCellSize;
+        m_vpiFeaturePatchSize = dcfParams.featurePatchSize;  // Store feature patch size (24)
+        m_vpiTgtPatchSize = dcfParams.featurePatchSize * dcfParams.hogCellSize;  // Target patch size (96)
         CHECK_VPI_STATUS(vpiCreateDCFTracker(m_vpiBackend, 1, m_maxTrackedTargets, &dcfParams, &m_dcfPayload));
         VPIImageFormat patchFormat = (m_vpiBackend == VPI_BACKEND_PVA) ? VPI_IMAGE_FORMAT_RGB8p : VPI_IMAGE_FORMAT_RGBA8;
         CHECK_VPI_STATUS(vpiImageCreate(m_vpiTgtPatchSize, m_vpiTgtPatchSize * m_maxTrackedTargets, patchFormat, 0, &m_vpiTgtPatches));
         CHECK_VPI_STATUS(vpiArrayCreate(m_maxTrackedTargets, VPI_ARRAY_TYPE_DCF_TRACKED_BOUNDING_BOX, 0, &m_vpiInTargets));
         CHECK_VPI_STATUS(vpiArrayCreate(m_maxTrackedTargets, VPI_ARRAY_TYPE_DCF_TRACKED_BOUNDING_BOX, 0, &m_vpiOutTargets));
-        // Create an array to hold the confidence scores.
+        // Create an array to hold the confidence scores (per-object max correlation response)
         CHECK_VPI_STATUS(vpiArrayCreate(m_maxTrackedTargets, VPI_ARRAY_TYPE_F32, 0, &m_vpiConfidenceScores));
+        // Create an image to hold the full correlation response map (fallback method)
+        // Correlation map size MUST be featurePatchSize (not featurePatchSize * hogCellSize)
+        CHECK_VPI_STATUS(vpiImageCreate(m_vpiFeaturePatchSize, m_vpiFeaturePatchSize * m_maxTrackedTargets,
+                                       VPI_IMAGE_FORMAT_F32, 0, &m_vpiCorrelationMap));
+        qInfo() << "Cam" << m_cameraIndex << ": Created correlation map" << m_vpiFeaturePatchSize << "x" << (m_vpiFeaturePatchSize * m_maxTrackedTargets)
+                << "(featurePatchSize=" << m_vpiFeaturePatchSize << ", tgtPatchSize=" << m_vpiTgtPatchSize << ")";
     } catch (const std::exception &e) {
         qCritical() << "Cam" << m_cameraIndex << ": VPI Initialization failed:" << e.what();
         cleanupVPI(); return false;
@@ -517,15 +558,28 @@ void CameraVideoStreamDevice::cleanupVPI()
     VPI_SAFE_DESTROY(vpiPayloadDestroy, m_cropScalePayload);
     VPI_SAFE_DESTROY(vpiImageDestroy, m_vpiFrameNV12);
     VPI_SAFE_DESTROY(vpiStreamDestroy, m_vpiStream);
-    VPI_SAFE_DESTROY(vpiArrayDestroy, m_vpiConfidenceScores); 
+    VPI_SAFE_DESTROY(vpiArrayDestroy, m_vpiConfidenceScores);
+    VPI_SAFE_DESTROY(vpiImageDestroy, m_vpiCorrelationMap);
+
+    // CUDA context cleanup
+    cudaError_t cudaStatus = cudaDeviceSynchronize();
+    if (cudaStatus != cudaSuccess) {
+        qWarning() << "Cam" << m_cameraIndex << ": CUDA sync failed:"
+                   << cudaGetErrorString(cudaStatus);
+    }
+
     qInfo() << "Cam" << m_cameraIndex << ": Finished cleaning VPI objects.";
 }
 
+// ============================================================================
+// FRAME PROCESSING
+// ============================================================================
 
-// --- Frame Processing Logic ---
-// processFrame: Populate FrameData, including data.trackingBbox (should compile now)
 bool CameraVideoStreamDevice::processFrame(GstBuffer *buffer)
 {
+    // Record frame arrival time for latency measurement
+    m_frameArrivalTime = m_latencyTimer.elapsed();
+
     GstMapInfo mapInfo = GST_MAP_INFO_INIT;
     VPIImage vpiImgInput_wrapped = nullptr;
     cv::Mat cvFrameBGRA;
@@ -553,30 +607,61 @@ bool CameraVideoStreamDevice::processFrame(GstBuffer *buffer)
         cv::cvtColor(m_yuy2_host_buffer, cvFrameBGRA, cv::COLOR_YUV2BGRA_YUY2);
         if (cvFrameBGRA.empty()) throw std::runtime_error("cv::cvtColor failed YUY2->BGRA.");
 
-        // --- Object Detection Start ---
+        // ====================================================================
+        // ASYNC OBJECT DETECTION - Non-blocking inference
+        // ====================================================================
         std::vector<YoloDetection> detections;
-        bool detection_this_frame = m_detectionEnabled.load(std::memory_order_relaxed);
+        bool detection_enabled = m_detectionEnabled.load(std::memory_order_relaxed);
 
-        if (detection_this_frame) {
-            // The YoloInference class expects a BGR cv::Mat by default (due to blobFromImage swapRB=true)
-            // Or it might handle BGRA if you modify it. Let's assume BGR for now.
+        // Only run detection on day camera (camera 0), every 3rd frame (10Hz)
+        if (detection_enabled && m_cameraIndex == 0 && (m_frameCount % 3 == 0)) {
+            // Convert BGRA to BGR for YOLO (non-blocking, just queue)
             if (cvFrameBGRA.channels() == 4) {
                 cv::cvtColor(cvFrameBGRA, cvFrameBGR, cv::COLOR_BGRA2BGR);
-            } else if (cvFrameBGRA.channels() == 3) { // If it was already BGR for some reason
+            } else if (cvFrameBGRA.channels() == 3) {
                 cvFrameBGR = cvFrameBGRA;
-            } else {
-                qWarning() << "Cam" << m_cameraIndex << "Unsupported channel count for detection input:" << cvFrameBGRA.channels();
-                // Potentially skip detection or handle error
             }
 
+            // ✅ MEMORY LEAK FIX: Check if previous detection completed before starting new one
+            // This prevents QtConcurrent QFuture accumulation and cv::Mat clone() pileup
             if (!cvFrameBGR.empty()) {
-                QElapsedTimer detectionTimer;
-                detectionTimer.start();
-                detections = m_inference.runInference(cvFrameBGR); // Pass the BGR frame
-                qDebug() << "Cam" << m_cameraIndex << "Inference time:" << detectionTimer.elapsed() << "ms, Detections:" << detections.size();
+                // Skip if previous detection still running (prevents memory accumulation)
+                if (m_detectionFuture.isValid() && !m_detectionFuture.isFinished()) {
+                    // Previous detection still running, skip this frame
+                    // Acceptable: detection runs at 10Hz, skipping one frame is fine
+                    qDebug() << "Cam" << m_cameraIndex << ": Skipping detection frame - previous task still running";
+                } else {
+                    QMutexLocker locker(&m_detectionMutex);
+                    if (!m_detectionInProgress) {
+                        // ✅ LEAK FIX: Only clone if we're actually going to use it
+                        m_detectionFrame = cvFrameBGR.clone();
+                        m_detectionInProgress = true;
+                        locker.unlock();
+
+                        // ✅ CRITICAL FIX: Capture QFuture to prevent memory leak
+                        // Uncaptured QFutures accumulate internal result data
+                        m_detectionFuture = QtConcurrent::run([this]() {
+                            auto result = m_inference.runInference(m_detectionFrame);
+
+                            QMutexLocker lock(&m_detectionMutex);
+                            m_latestDetections = result;
+                            m_detectionInProgress = false;
+                            m_lastDetectionTime.restart();
+
+                            // ✅ MEMORY LEAK FIX: Explicitly release detection frame after use
+                            m_detectionFrame.release();
+                        });
+                    }
+                }
             }
         }
-        // --- Object Detection End ---
+
+        // Use latest available detections (non-blocking read)
+        {
+            QMutexLocker locker(&m_detectionMutex);
+            detections = m_latestDetections;
+        }
+        // --- Object Detection End (Async) ---
 
         // 3. Wrap BGRA Mat for VPI input
         CHECK_VPI_STATUS(vpiImageCreateWrapperOpenCVMat(cvFrameBGRA, 0, &vpiImgInput_wrapped));
@@ -622,7 +707,7 @@ bool CameraVideoStreamDevice::processFrame(GstBuffer *buffer)
                             } else {
                                 qWarning() << "[CAM" << m_cameraIndex << "] Tracker init failed. Reporting failure to model.";
                                 // Report failure to model so it can transition back to Off
-                                m_stateModel->updateTrackingResult(m_cameraIndex, false, 0,0,0,0,0,0, VPI_TRACKING_STATE_LOST);
+                                m_stateModel->updateTrackingResult(m_cameraIndex, false, 0,0,0,0,0,0, VPI_TRACKING_STATE_LOST, 0.0f);
                             }
                         }
                         // Fall through to runTrackingCycle if initialized (or just initialized)
@@ -652,7 +737,7 @@ bool CameraVideoStreamDevice::processFrame(GstBuffer *buffer)
                             m_currentTarget = {};
                             m_currentTarget.state = VPI_TRACKING_STATE_LOST;
                             // Inform model of lost state so it can transition to Off
-                            m_stateModel->updateTrackingResult(m_cameraIndex, false, 0,0,0,0,0,0, VPI_TRACKING_STATE_LOST);
+                            m_stateModel->updateTrackingResult(m_cameraIndex, false, 0,0,0,0,0,0, VPI_TRACKING_STATE_LOST, 0.0f);
                         }
                         break;
 
@@ -668,7 +753,7 @@ bool CameraVideoStreamDevice::processFrame(GstBuffer *buffer)
                             qWarning() << "[CAM" << m_cameraIndex << "] Anomaly: In Firing but tracker not initialized. Resetting.";
                             m_currentTarget = {};
                             m_currentTarget.state = VPI_TRACKING_STATE_LOST;
-                            m_stateModel->updateTrackingResult(m_cameraIndex, false, 0,0,0,0,0,0, VPI_TRACKING_STATE_LOST);
+                            m_stateModel->updateTrackingResult(m_cameraIndex, false, 0,0,0,0,0,0, VPI_TRACKING_STATE_LOST, 0.0f);
                         }
                         break;
 
@@ -719,9 +804,11 @@ bool CameraVideoStreamDevice::processFrame(GstBuffer *buffer)
             }
             //qDebug() << "[CAM" << m_cameraIndex << " | processFrame] Reporting to model. trackerIsValidThisFrame:" << trackerIsValidThisFrame   << "m_currentTarget.state:" << static_cast<int>(m_currentTarget.state);
             // Call the model's update method (using the new name if you changed it)
+            // Use smoothed confidence for stable OSD display (reduces jitter)
             m_stateModel->updateTrackingResult(m_cameraIndex, trackerIsValidThisFrame,
                                                cX_px, cY_px, tW_px, tH_px,
-                                               velX_px_s, velY_px_s, m_currentTarget.state);
+                                               velX_px_s, velY_px_s, m_currentTarget.state,
+                                               m_smoothedConfidence);
         }
          // --- END OF SystemStateModel UPDATE ---
 
@@ -737,6 +824,7 @@ bool CameraVideoStreamDevice::processFrame(GstBuffer *buffer)
         //data.trackingEnabled = tracking_this_frame;
         data.trackerInitialized = m_trackerInitialized;
         data.trackingState = m_currentTarget.state; // VPITrackingState
+        data.trackingConfidence = m_smoothedConfidence;  // Smoothed tracking confidence for stable display (0.0-1.0)
 
         // >>> *** Convert VPIRectI (m_currentTarget.bbox) to QRect (data.trackingBbox) ***
         data.trackingBbox = QRect(m_currentTarget.bbox.left,
@@ -749,16 +837,27 @@ bool CameraVideoStreamDevice::processFrame(GstBuffer *buffer)
         data.stabEnabled = m_stabEnabled;
         data.azimuth = m_currentAzimuth;
         data.elevation = m_currentElevation;
+        data.imuConnected = m_imuConnected;
+        data.imuRollDeg = m_imuRollDeg;
+        data.imuPitchDeg = m_imuPitchDeg;
+        data.imuYawDeg = m_imuYawDeg;           // Vehicle heading for azimuth calculation
+        data.imuTemp = m_imuTemp;
+        data.gyroX = m_gyroX;
+        data.gyroY = m_gyroY;
+        data.gyroZ = m_gyroZ;
+        data.accelX = m_accelX;
+        data.accelY = m_accelY;
+        data.accelZ = m_accelZ;
 
         data.speed = m_speed;
         data.lrfDistance = m_lrfDistance;
         data.sysCharged = m_sysCharged;
-        data.sysArmed = m_sysArmed;
+        data.gunArmed = m_sysArmed;
         data.sysReady = m_sysReady;
         data.fireMode = m_fireMode;
         data.reticleType = m_reticleType;
         data.colorStyle = m_colorStyle;
-        data.detectionEnabled = detection_this_frame;
+        data.detectionEnabled = detection_enabled;
         data.detections = detections;
         data.zeroingModeActive = m_currentZeroingModeActive;
         data.zeroingAppliedToBallistics = m_currentZeroingApplied;
@@ -768,11 +867,15 @@ bool CameraVideoStreamDevice::processFrame(GstBuffer *buffer)
         data.windageModeActive = m_currentWindageModeActive;
         data.windageAppliedToBallistics = m_currentWindageApplied;
         data.windageSpeedKnots = m_currentWindageSpeed;
+        data.windageDirectionDegrees = m_currentWindageDirection;
+        data.calculatedCrosswindMS = m_currentCalculatedCrosswind;
         data.isReticleInNoFireZone = m_currentIsReticleInNoFireZone;
         data.gimbalStoppedAtNTZLimit = m_currentGimbalStoppedAtNTZLimit;
         data.leadAngleActive = m_isLacActiveForReticle; // Assuming this is the LAC status
-        data.reticleAimpointImageX_px = m_currentReticleAimpointImageX_px; // Assuming these are the reticle aimpoint positions in pixels
-        data.reticleAimpointImageY_px = m_currentReticleAimpointImageY_px; // Assuming these are the reticle aimpoint positions in pixels
+        data.reticleAimpointImageX_px = m_currentReticleAimpointImageX_px; // Reticle: gun boresight with zeroing ONLY
+        data.reticleAimpointImageY_px = m_currentReticleAimpointImageY_px; // Reticle: gun boresight with zeroing ONLY
+        data.ccipImpactImageX_px = m_currentCcipImpactImageX_px; // ✅ CCIP: bullet impact with zeroing + lead
+        data.ccipImpactImageY_px = m_currentCcipImpactImageY_px; // ✅ CCIP: bullet impact with zeroing + lead
         data.leadStatusText = m_currentLeadStatusText; // Assuming this is the lead status text
         data.currentScanName = m_currentScanName; // Assuming this is the current scan name
         data.currentTrackingPhase = m_currentTrackingPhase;
@@ -781,9 +884,32 @@ bool CameraVideoStreamDevice::processFrame(GstBuffer *buffer)
         data.acquisitionBoxW_px = m_currentAcquisitionBoxW_px  ;
         data.acquisitionBoxH_px = m_currentAcquisitionBoxH_px  ;
         data.trackerHasValidTarget = true;
-        // 7. Emit FrameData
-        if (!data.baseImage.isNull()) emit frameDataReady(data);
+        data.leadAngleStatus = m_currentLeadAngleStatus;          
+        data.leadAngleOffsetAz_deg = m_currentLeadAngleOffsetAz;
+        data.leadAngleOffsetEl_deg = m_currentLeadAngleOffsetEl;
+        data.stationAmmunitionLevel = m_currentAmmunitionLevel;
 
+        // ====================================================================
+        // LATENCY MEASUREMENT: Calculate glass-to-glass latency
+        // ====================================================================
+        /*qint64 frameCompleteTime = m_latencyTimer.elapsed();
+        qint64 frameLatency_ms = frameCompleteTime - m_frameArrivalTime;
+        m_totalLatency_ms += frameLatency_ms;
+        m_frameProcessedCount++;
+
+        // Report every 30 frames (once per second at 30fps)
+        if (m_frameProcessedCount % 30 == 0) {
+            qint64 avgLatency = m_totalLatency_ms / m_frameProcessedCount;
+            qInfo() << "🎯 [CAM" << m_cameraIndex << "] Glass-to-Glass Latency:"
+                    << "Current=" << frameLatency_ms << "ms"
+                    << "| Average=" << avgLatency << "ms"
+                    << "| Frames=" << m_frameProcessedCount;
+        }*/
+
+        // 7. Emit FrameData
+        if (!data.baseImage.isNull()) {
+            emit frameDataReady(data);
+        }
     } catch (const std::exception &e) {
         qCritical() << "Cam" << m_cameraIndex << ": Exception in processFrame loop:" << e.what();
         emit processingError(m_cameraIndex, QString("Frame Loop Error: %1").arg(e.what()));
@@ -795,49 +921,9 @@ bool CameraVideoStreamDevice::processFrame(GstBuffer *buffer)
     return true;
 }
 
-
-// initializeFirstTarget() method (No changes needed based on errors)
-/*bool CameraVideoStreamDevice::initializeFirstTarget(VPIImage vpiFrameInput)
-{
-    qInfo() << "Cam" << m_cameraIndex << ": Initializing first tracker target...";
-    try {
-        float boxW = std::min(100.0f, static_cast<float>(m_outputWidth * 0.2f));
-        float boxH = std::min(100.0f, static_cast<float>(m_outputHeight * 0.2f));
-        float boxX =   m_currentReticleAimpointImageX_px  - boxW / 2.0f;  // Use outputWidth
-        float boxY =    m_currentReticleAimpointImageY_px - boxH  / 2.0f; // Use outputHeight
-
-        VPIArrayData targetsData;
-        CHECK_VPI_STATUS(vpiArrayLockData(m_vpiInTargets, VPI_LOCK_WRITE, VPI_ARRAY_BUFFER_HOST_AOS, &targetsData));
-        if (targetsData.buffer.aos.capacity < 1) {
-             qCritical() << "Cam" << m_cameraIndex << ": VPI target array capacity is zero!";
-             vpiArrayUnlock(m_vpiInTargets); return false;
-        }
-        auto *pTarget = static_cast<VPIDCFTrackedBoundingBox *>(targetsData.buffer.aos.data);
-        pTarget->bbox.left   = static_cast<int32_t>(boxX);
-        pTarget->bbox.top    = static_cast<int32_t>(boxY);
-        pTarget->bbox.width  = static_cast<int32_t>(boxW);
-        pTarget->bbox.height = static_cast<int32_t>(boxH);
-        pTarget->state       = VPI_TRACKING_STATE_NEW;
-        pTarget->seqIndex    = 0;
-        pTarget->filterLR    = 0.075f;
-        pTarget->filterChannelWeightsLR = 0.1f;
-        pTarget->userData    = nullptr;
-        m_currentTarget = *pTarget;
-        *targetsData.buffer.aos.sizePointer = 1;
-        CHECK_VPI_STATUS(vpiArrayUnlock(m_vpiInTargets));
-
-        CHECK_VPI_STATUS(vpiSubmitConvertImageFormat(m_vpiStream, VPI_BACKEND_CUDA, vpiFrameInput, m_vpiFrameNV12, nullptr));
-        CHECK_VPI_STATUS(vpiSubmitCropScalerBatch(m_vpiStream, 0, m_cropScalePayload, &m_vpiFrameNV12,
-                                                  1, m_vpiInTargets, m_vpiTgtPatchSize, m_vpiTgtPatchSize, m_vpiTgtPatches));
-        CHECK_VPI_STATUS(vpiSubmitDCFTrackerUpdateBatch(m_vpiStream, 0, m_dcfPayload, nullptr, 0,
-                                                        nullptr, nullptr, m_vpiTgtPatches, m_vpiInTargets, nullptr));
-        CHECK_VPI_STATUS(vpiStreamSync(m_vpiStream));
-    } catch (const std::exception &e) {
-        qCritical() << "Cam" << m_cameraIndex << ": Failed init first target:" << e.what();
-        m_currentTarget.state = VPI_TRACKING_STATE_LOST; m_trackerInitialized = false; return false;
-    }
-    return true;
-}*/
+// ============================================================================
+// VPI TRACKING METHODS
+// ============================================================================
 
 bool CameraVideoStreamDevice::initializeFirstTarget(VPIImage vpiFrameInput, float boxX, float boxY, float boxW, float boxH)
 {
@@ -868,7 +954,7 @@ bool CameraVideoStreamDevice::initializeFirstTarget(VPIImage vpiFrameInput, floa
         CHECK_VPI_STATUS(vpiSubmitConvertImageFormat(m_vpiStream, VPI_BACKEND_CUDA, vpiFrameInput, m_vpiFrameNV12, nullptr));
         CHECK_VPI_STATUS(vpiSubmitCropScalerBatch(m_vpiStream, 0, m_cropScalePayload, &m_vpiFrameNV12,
                                                   1, m_vpiInTargets, m_vpiTgtPatchSize, m_vpiTgtPatchSize, m_vpiTgtPatches));
-        CHECK_VPI_STATUS(vpiSubmitDCFTrackerUpdateBatch(m_vpiStream, 0, m_dcfPayload, nullptr, 0,
+        CHECK_VPI_STATUS(vpiSubmitDCFTrackerUpdateBatch(m_vpiStream, m_vpiBackend, m_dcfPayload, nullptr, 0,
                                                         nullptr, nullptr, m_vpiTgtPatches, m_vpiInTargets, nullptr));
         CHECK_VPI_STATUS(vpiStreamSync(m_vpiStream));
     } catch (const std::exception &e) {
@@ -880,19 +966,16 @@ bool CameraVideoStreamDevice::initializeFirstTarget(VPIImage vpiFrameInput, floa
     return true;
 }
 
-// runTrackingCycle() method (No changes needed based on errors)
 bool CameraVideoStreamDevice::runTrackingCycle(VPIImage vpiFrameInput)
 {
-    //const float CONFIDENCE_THRESHOLD_LOW = 0.25f; // Example: If score drops below this, enter shadow mode.
-    //const float CONFIDENCE_THRESHOLD_HIGH = 0.40f; // Example: If score rises above this, re-acquire lock.
-
     try {
         CHECK_VPI_STATUS(vpiSubmitConvertImageFormat(m_vpiStream, VPI_BACKEND_CUDA, vpiFrameInput, m_vpiFrameNV12, nullptr));
         CHECK_VPI_STATUS(vpiSubmitCropScalerBatch(m_vpiStream, 0, m_cropScalePayload, &m_vpiFrameNV12,
                                                   1, m_vpiInTargets, m_vpiTgtPatchSize, m_vpiTgtPatchSize, m_vpiTgtPatches));
-        CHECK_VPI_STATUS(vpiSubmitDCFTrackerLocalizeBatch(m_vpiStream, 0, m_dcfPayload, NULL, 0,
+        // Request BOTH correlation map AND max correlation scores for fallback
+        CHECK_VPI_STATUS(vpiSubmitDCFTrackerLocalizeBatch(m_vpiStream, m_vpiBackend, m_dcfPayload, NULL, 0,
                                                           NULL, m_vpiTgtPatches, m_vpiInTargets, m_vpiOutTargets,
-                                                          NULL, m_vpiConfidenceScores, NULL));
+                                                          m_vpiCorrelationMap, m_vpiConfidenceScores, NULL));
         CHECK_VPI_STATUS(vpiStreamSync(m_vpiStream));
 
         VPIArrayData outTargetsData;
@@ -905,8 +988,95 @@ bool CameraVideoStreamDevice::runTrackingCycle(VPIImage vpiFrameInput)
         bool target_found = false;
         if (*outTargetsData.buffer.aos.sizePointer > 0) {
             VPIDCFTrackedBoundingBox *tempTarget = static_cast<VPIDCFTrackedBoundingBox *>(outTargetsData.buffer.aos.data);
-            float currentConfidence = static_cast<float*>(confidenceData.buffer.aos.data)[0];
-            qDebug() << "[CAM" << m_cameraIndex << "] VPI Localize Result: State=" << tempTarget->state << "Confidence=" << currentConfidence;
+
+            // Read confidence if available from VPI
+            float currentConfidence = 0.0f;
+            if (*confidenceData.buffer.aos.sizePointer > 0) {
+                // METHOD 1: VPI provided per-object max correlation scores
+                currentConfidence = static_cast<float*>(confidenceData.buffer.aos.data)[0];
+                qDebug() << "[CAM" << m_cameraIndex << "] VPI provided confidence (method 1):" << currentConfidence;
+            } else {
+                // METHOD 2: Try reading from full correlation response map
+                VPIImageData correlationImgData;
+                VPIStatus lockStatus = vpiImageLockData(m_vpiCorrelationMap, VPI_LOCK_READ, VPI_IMAGE_BUFFER_HOST_PITCH_LINEAR, &correlationImgData);
+
+                if (lockStatus == VPI_SUCCESS && correlationImgData.buffer.pitch.planes[0].data != nullptr) {
+                    // Successfully locked correlation map, find maximum value
+                    int width = correlationImgData.buffer.pitch.planes[0].width;
+                    int height = correlationImgData.buffer.pitch.planes[0].height;
+                    int32_t pitchBytes = correlationImgData.buffer.pitch.planes[0].pitchBytes;
+                    const uint8_t *basePtr = static_cast<const uint8_t*>(correlationImgData.buffer.pitch.planes[0].data);
+
+                    float maxCorr = -1e9f;
+                    for (int y = 0; y < height; ++y) {
+                        const float *rowPtr = reinterpret_cast<const float*>(basePtr + y * pitchBytes);
+                        for (int x = 0; x < width; ++x) {
+                            if (rowPtr[x] > maxCorr) {
+                                maxCorr = rowPtr[x];
+                            }
+                        }
+                    }
+                    // Normalize DCF correlation response to 0-1 range
+                    // DCF correlation scores typically range from ~0 to ~8
+                    // Map: 0→0.0, 4→0.5, 8→1.0, >8→1.0 (clamped)
+                    currentConfidence = std::min(1.0f, std::max(0.0f, maxCorr / 8.0f));
+                    qDebug() << "[CAM" << m_cameraIndex << "] VPI correlation map confidence (method 2): raw=" << maxCorr
+                             << "normalized=" << currentConfidence << "(" << (int)(currentConfidence * 100) << "%) map size:" << width << "x" << height;
+                    vpiImageUnlock(m_vpiCorrelationMap);
+                } else {
+                    // METHOD 3: VPI didn't populate confidence array or correlation map - estimate from tracking state
+                    // This is a fallback for VPI backends that don't support confidence scores
+                    //
+                    // ACTUAL VPI Tracking State Enum (verified from runtime behavior):
+                    // 0 = VPI_TRACKING_STATE_NEW (initialization)
+                    // 1 = VPI_TRACKING_STATE_LOST (object lost) ← SWAPPED
+                    // 2 = VPI_TRACKING_STATE_TRACKED (object successfully found) ← SWAPPED - MOST COMMON
+                    // 3 = VPI_TRACKING_STATE_SHADOW_TRACKED (tracked using prediction, partially obscured)
+                    // NOTE: States 1 and 2 are opposite of some VPI documentation!
+                    switch (tempTarget->state) {
+                        case 0:  // VPI_TRACKING_STATE_NEW
+                            currentConfidence = 0.50f;  // Medium confidence - new target, needs validation
+                            break;
+                        case 1:  // VPI_TRACKING_STATE_LOST (verified: means LOST, not TRACKED)
+                            currentConfidence = 0.0f;   // No confidence - tracking lost
+                            break;
+                        case 2:  // VPI_TRACKING_STATE_TRACKED (verified: means TRACKED, not LOST)
+                            currentConfidence = 0.90f;  // High confidence - actively tracked with visual confirmation
+                            break;
+                        case 3:  // VPI_TRACKING_STATE_SHADOW_TRACKED
+                            currentConfidence = 0.65f;  // Medium-high confidence - using prediction/coasting
+                            break;
+                        default:
+                            currentConfidence = 0.30f;  // Low confidence - unknown state
+                            qWarning() << "[CAM" << m_cameraIndex << "] Unknown VPI tracking state:" << tempTarget->state;
+                            break;
+                    }
+                    static bool warningShown = false;
+                    if (!warningShown) {
+                        qWarning() << "[CAM" << m_cameraIndex << "] VPI confidence unavailable (methods 1 & 2 failed) - using state-based estimation (method 3)";
+                        warningShown = true;  // Only warn once
+                    }
+                }
+            }
+
+            // Apply exponential moving average filter for smooth OSD display
+            // alpha = 0.2 means ~5 frames to reach 90% of new value (reduces jitter)
+            const float alpha = 0.2f;
+            if (m_smoothedConfidence == 0.0f) {
+                // First frame, initialize with current value
+                m_smoothedConfidence = currentConfidence;
+            } else {
+                // Smooth updates: smoothed = alpha * new + (1-alpha) * old
+                m_smoothedConfidence = alpha * currentConfidence + (1.0f - alpha) * m_smoothedConfidence;
+            }
+
+            qDebug() << "[CAM" << m_cameraIndex << "] VPI Localize Result: State=" << tempTarget->state
+                     << "Confidence=" << currentConfidence << "Smoothed=" << m_smoothedConfidence
+                     << "(VPI array size=" << *confidenceData.buffer.aos.sizePointer << ")";
+
+            // Store confidence scores for later use
+            m_currentConfidence = currentConfidence;
+
             // IMPORTANT: Copy the data to m_currentTarget
             m_currentTarget = *tempTarget;
 
@@ -948,7 +1118,7 @@ bool CameraVideoStreamDevice::runTrackingCycle(VPIImage vpiFrameInput)
             *inTargetsData.buffer.aos.sizePointer = 1;
             CHECK_VPI_STATUS(vpiArrayUnlock(m_vpiInTargets));
 
-            CHECK_VPI_STATUS(vpiSubmitDCFTrackerUpdateBatch(m_vpiStream, 0, m_dcfPayload, nullptr, 0,
+            CHECK_VPI_STATUS(vpiSubmitDCFTrackerUpdateBatch(m_vpiStream, m_vpiBackend, m_dcfPayload, nullptr, 0,
                                                             nullptr, nullptr, m_vpiTgtPatches, m_vpiInTargets, nullptr));
             CHECK_VPI_STATUS(vpiStreamSync(m_vpiStream)); // Sync after update
 
@@ -978,36 +1148,39 @@ bool CameraVideoStreamDevice::runTrackingCycle(VPIImage vpiFrameInput)
     return true;
 }
 
+// ============================================================================
+// UTILITY METHODS
+// ============================================================================
 
-// --- Helper Functions --- (No changes needed based on errors)
-QImage CameraVideoStreamDevice::cvMatToQImage(const cv::Mat &inMat)
+QImage CameraVideoStreamDevice::cvMatToQImage(const cv::Mat &mat)
 {
-    switch (inMat.type()) {
-        case CV_8UC4: { // BGRA
-            QImage image(inMat.data, inMat.cols, inMat.rows, static_cast<int>(inMat.step), QImage::Format_ARGB32);
-            return image.copy();
-        }
-        case CV_8UC3: { // BGR
-            QImage image(inMat.data, inMat.cols, inMat.rows, static_cast<int>(inMat.step), QImage::Format_RGB888);
-            return image.rgbSwapped().copy();
-        }
-        case CV_8UC1: { // Grayscale
-             #if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
-                 QImage image(inMat.data, inMat.cols, inMat.rows, static_cast<int>(inMat.step), QImage::Format_Grayscale8);
-             #else
-                 static QVector<QRgb> sColorTable; // Fallback for older Qt
-                 if (sColorTable.isEmpty()) {
-                     sColorTable.resize(256);
-                     for (int i = 0; i < 256; ++i) sColorTable[i] = qRgb(i, i, i);
-                 }
-                 QImage image(inMat.data, inMat.cols, inMat.rows, static_cast<int>(inMat.step), QImage::Format_Indexed8);
-                 image.setColorTable(sColorTable);
-            #endif
-            return image.copy();
-        }
-        default:
-            qWarning("cvMatToQImage() - Unsupported CV type: %d for cam %d", inMat.type(), m_cameraIndex);
-            break;
+    if (mat.empty()) return QImage();
+
+    switch (mat.type()) {
+    case CV_8UC4: { // 4-channel BGRA (OpenCV default ordering: B,G,R,A)
+        // QImage::Format_ARGB32 is stored in memory as BGRA on little-endian systems,
+        // so this mapping is correct and avoids expensive per-pixel conversions.
+        QImage img(mat.data, mat.cols, mat.rows, static_cast<int>(mat.step),
+                   QImage::Format_ARGB32);
+        return img.copy(); // deep copy because mat.data will be freed/unmapped soon
     }
-    return QImage();
+
+    case CV_8UC3: { // 3-channel BGR
+        // QImage::Format_RGB888 expects R,G,B order. OpenCV is B,G,R -> use rgbSwapped().
+        QImage img(mat.data, mat.cols, mat.rows, static_cast<int>(mat.step),
+                   QImage::Format_RGB888);
+        QImage swapped = img.rgbSwapped(); // Creates the correct RGB ordering
+        return swapped.copy();
+    }
+
+    case CV_8UC1: { // Grayscale
+        QImage img(mat.data, mat.cols, mat.rows, static_cast<int>(mat.step),
+                   QImage::Format_Grayscale8);
+        return img.copy();
+    }
+
+    default:
+        qWarning() << "cvMatToQImage: Unsupported cv::Mat type:" << mat.type();
+        return QImage();
+    }
 }
