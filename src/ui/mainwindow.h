@@ -240,9 +240,15 @@ private:
     qint64 m_lastTrackButtonPressTime = 0; // For debouncing track button presses
     static constexpr int DOUBLE_CLICK_INTERVAL_MS = 1000; // 300ms for double-click
 
+    // QML Integration
     QQuickView *m_qmlView;
+    QWidget *m_qmlContainer;
     VideoImageProvider *m_videoImageProvider;
     OsdViewModel *m_osdViewModel;
+
+protected:
+    // Override to handle window resize for QML container
+    void resizeEvent(QResizeEvent *event) override;
 };
 
 #endif // MAINWINDOW_H

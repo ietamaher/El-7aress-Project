@@ -126,10 +126,10 @@ MainWindow::MainWindow(GimbalController *gimbal,
     }
 
     // Embed QML view in Qt Widget UI (if using hybrid approach)
-    QWidget *qmlContainer = QWidget::createWindowContainer(m_qmlView, this);
-    qmlContainer->setMinimumSize(1024, 768);
-    qmlContainer->setMaximumSize(1024, 768);
-    qmlContainer->setObjectName("qmlContainer"); // For debugging
+    m_qmlContainer = QWidget::createWindowContainer(m_qmlView, this);
+    m_qmlContainer->setMinimumSize(1024, 768);
+    m_qmlContainer->setMaximumSize(1024, 768);
+    m_qmlContainer->setObjectName("qmlContainer"); // For debugging
 
     // CRITICAL: Hide old videoLabel if it exists (to prevent blocking QML)
     if (ui->videoLabel) {
@@ -138,26 +138,34 @@ MainWindow::MainWindow(GimbalController *gimbal,
         ui->videoLabel->setVisible(false);
     }
 
-    // Replace or add to existing video label layout
-    if (ui->cameraContainerWidget && ui->cameraContainerWidget->layout()) {
-        qDebug() << "[MainWindow] Adding QML container to existing layout";
-        ui->cameraContainerWidget->layout()->addWidget(qmlContainer);
+    // SOLUTION: Set parent and explicit geometry instead of relying on layout
+    // This ensures the QML container is always visible and properly sized
+    if (ui->cameraContainerWidget) {
+        qDebug() << "[MainWindow] Setting QML container as child of cameraContainerWidget";
+        m_qmlContainer->setParent(ui->cameraContainerWidget);
+
+        // Make container fill the parent widget
+        m_qmlContainer->setGeometry(0, 0,
+                                  ui->cameraContainerWidget->width(),
+                                  ui->cameraContainerWidget->height());
+
+        // Ensure parent widget is also visible
+        ui->cameraContainerWidget->show();
     } else {
-        // Create new layout if needed
-        qDebug() << "[MainWindow] Creating new layout for QML container";
-        QVBoxLayout *layout = new QVBoxLayout(ui->cameraContainerWidget);
-        layout->setContentsMargins(0, 0, 0, 0);
-        layout->addWidget(qmlContainer);
+        // Fallback: attach to main window directly
+        qDebug() << "[MainWindow] Attaching QML container to main window (fallback)";
+        m_qmlContainer->setParent(this);
+        m_qmlContainer->setGeometry(0, 0, 1024, 768);
     }
 
     // Force QML container to be visible and on top
-    qmlContainer->show();
-    qmlContainer->raise();
-    qmlContainer->setFocus();
+    m_qmlContainer->show();
+    m_qmlContainer->raise();
+    m_qmlContainer->setFocus();
 
-    qDebug() << "[MainWindow] QML container created - visible:" << qmlContainer->isVisible()
-             << "size:" << qmlContainer->size()
-             << "geometry:" << qmlContainer->geometry();
+    qDebug() << "[MainWindow] QML container created - visible:" << m_qmlContainer->isVisible()
+             << "size:" << m_qmlContainer->size()
+             << "geometry:" << m_qmlContainer->geometry();
     // --- Create OSD Renderers ---
     // Determine output dimensions (e.g., 960x720 from 4:3 crop)
     // These should ideally come from config or CameraVideoStreamDevice itself
@@ -1620,6 +1628,21 @@ void MainWindow::on_pushButton_clicked()
         // For now, only a double-click will cancel.
         qDebug() << "Joystick: TRACK button pressed, but already in an active tracking phase. Double-click to cancel.";
         break;
+    }
+}
+
+// ========================================================================
+// RESIZE EVENT - Handle window/widget resize for QML container
+// ========================================================================
+void MainWindow::resizeEvent(QResizeEvent *event)
+{
+    QMainWindow::resizeEvent(event); // Call base class implementation
+
+    // Resize QML container to fill parent widget when window resizes
+    if (m_qmlContainer && ui->cameraContainerWidget) {
+        m_qmlContainer->setGeometry(0, 0,
+                                    ui->cameraContainerWidget->width(),
+                                    ui->cameraContainerWidget->height());
     }
 }
 
