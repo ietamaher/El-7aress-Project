@@ -125,7 +125,19 @@ SOURCES += \
     ../features/models/aboutviewmodel.cpp \
     ../features/models/areazoneparameterviewmodel.cpp \
     ../features/models/sectorscanparameterviewmodel.cpp \
-    ../features/models/trpparameterviewmodel.cpp
+    ../features/models/trpparameterviewmodel.cpp \
+    ../features/controllers/applicationcontroller.cpp \
+    ../features/controllers/mainmenucontroller.cpp \
+    ../features/controllers/reticlemenucontroller.cpp \
+    ../features/controllers/colormenucontroller.cpp \
+    ../features/controllers/osdcontroller.cpp \
+    ../features/controllers/zeroingcontroller.cpp \
+    ../features/controllers/windagecontroller.cpp \
+    ../features/controllers/environmentalcontroller.cpp \
+    ../features/controllers/zonedefinitioncontroller.cpp \
+    ../features/controllers/systemstatuscontroller.cpp \
+    ../features/controllers/aboutcontroller.cpp \
+    ../features/controllers/ledcontroller.cpp
 
 HEADERS += \
     controllers/cameracontroller.h \
@@ -203,7 +215,19 @@ HEADERS += \
     ../features/models/historyviewmodel.h \
     ../features/models/areazoneparameterviewmodel.h \
     ../features/models/sectorscanparameterviewmodel.h \
-    ../features/models/trpparameterviewmodel.h
+    ../features/models/trpparameterviewmodel.h \
+    ../features/controllers/applicationcontroller.h \
+    ../features/controllers/mainmenucontroller.h \
+    ../features/controllers/reticlemenucontroller.h \
+    ../features/controllers/colormenucontroller.h \
+    ../features/controllers/osdcontroller.h \
+    ../features/controllers/zeroingcontroller.h \
+    ../features/controllers/windagecontroller.h \
+    ../features/controllers/environmentalcontroller.h \
+    ../features/controllers/zonedefinitioncontroller.h \
+    ../features/controllers/systemstatuscontroller.h \
+    ../features/controllers/aboutcontroller.h \
+    ../features/controllers/ledcontroller.h
 
 FORMS += \
     ui/mainwindow.ui

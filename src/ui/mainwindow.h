@@ -22,8 +22,33 @@
 #include <QQmlError>
 #include <QUrl>
 #include "videoimageprovider.h"
-#include "../viewmodels/osdviewmodel.h"
-#include "../viewmodels/menuviewmodel.h"
+
+// Feature ViewModels
+class OsdViewModel;
+class MenuViewModel;
+class ZeroingViewModel;
+class WindageViewModel;
+class EnvironmentalViewModel;
+class ZoneDefinitionViewModel;
+class ZoneMapViewModel;
+class SystemStatusViewModel;
+class AboutViewModel;
+class AreaZoneParameterViewModel;
+class SectorScanParameterViewModel;
+class TRPParameterViewModel;
+
+// Feature Controllers
+class ApplicationController;
+class MainMenuController;
+class ReticleMenuController;
+class ColorMenuController;
+class OsdController;
+class ZeroingController;
+class WindageController;
+class EnvironmentalController;
+class ZoneDefinitionController;
+class SystemStatusController;
+class AboutController;
 
 // Forward Declarations (Controllers, Models, etc.)
 class GimbalController;
@@ -245,8 +270,35 @@ private:
     QQuickView *m_qmlView;
     QWidget *m_qmlContainer;
     VideoImageProvider *m_videoImageProvider;
+
+    // Feature ViewModels (exposed to QML)
     OsdViewModel *m_osdViewModel;
-    MenuViewModel *m_menuViewModel;
+    MenuViewModel *m_mainMenuViewModel;
+    MenuViewModel *m_reticleMenuViewModel;
+    MenuViewModel *m_colorMenuViewModel;
+    ZeroingViewModel *m_zeroingViewModel;
+    WindageViewModel *m_windageViewModel;
+    EnvironmentalViewModel *m_environmentalViewModel;
+    ZoneDefinitionViewModel *m_zoneDefinitionViewModel;
+    ZoneMapViewModel *m_zoneMapViewModel;
+    SystemStatusViewModel *m_systemStatusViewModel;
+    AboutViewModel *m_aboutViewModel;
+    AreaZoneParameterViewModel *m_areaZoneParameterViewModel;
+    SectorScanParameterViewModel *m_sectorScanParameterViewModel;
+    TRPParameterViewModel *m_trpParameterViewModel;
+
+    // Feature Controllers
+    ApplicationController *m_applicationController;
+    MainMenuController *m_mainMenuController;
+    ReticleMenuController *m_reticleMenuController;
+    ColorMenuController *m_colorMenuController;
+    OsdController *m_osdController;
+    ZeroingController *m_zeroingController;
+    WindageController *m_windageController;
+    EnvironmentalController *m_environmentalController;
+    ZoneDefinitionController *m_zoneDefinitionController;
+    SystemStatusController *m_systemStatusController;
+    AboutController *m_aboutController;
 
 protected:
     // Override to handle window resize for QML container
