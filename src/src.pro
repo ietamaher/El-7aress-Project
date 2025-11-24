@@ -114,8 +114,18 @@ SOURCES += \
     utils/colorutils.cpp \
     utils/inference.cpp \
     utils/reticleaimpointcalculator.cpp \
-    viewmodels/osdviewmodel.cpp \
-    viewmodels/menuviewmodel.cpp
+    ../features/models/osdviewmodel.cpp \
+    ../features/models/menuviewmodel.cpp \
+    ../features/models/zeroingviewmodel.cpp \
+    ../features/models/windageviewmodel.cpp \
+    ../features/models/environmentalviewmodel.cpp \
+    ../features/models/zonedefinitionviewmodel.cpp \
+    ../features/models/zonemapviewmodel.cpp \
+    ../features/models/systemstatusviewmodel.cpp \
+    ../features/models/aboutviewmodel.cpp \
+    ../features/models/areazoneparameterviewmodel.cpp \
+    ../features/models/sectorscanparameterviewmodel.cpp \
+    ../features/models/trpparameterviewmodel.cpp
 
 HEADERS += \
     controllers/cameracontroller.h \
@@ -181,8 +191,19 @@ HEADERS += \
     utils/inference.h \
     utils/reticleaimpointcalculator.h \
     utils/targetstate.h \
-    viewmodels/osdviewmodel.h \
-    viewmodels/menuviewmodel.h
+    ../features/models/osdviewmodel.h \
+    ../features/models/menuviewmodel.h \
+    ../features/models/zeroingviewmodel.h \
+    ../features/models/windageviewmodel.h \
+    ../features/models/environmentalviewmodel.h \
+    ../features/models/zonedefinitionviewmodel.h \
+    ../features/models/zonemapviewmodel.h \
+    ../features/models/systemstatusviewmodel.h \
+    ../features/models/aboutviewmodel.h \
+    ../features/models/historyviewmodel.h \
+    ../features/models/areazoneparameterviewmodel.h \
+    ../features/models/sectorscanparameterviewmodel.h \
+    ../features/models/trpparameterviewmodel.h
 
 FORMS += \
     ui/mainwindow.ui
