@@ -16,7 +16,7 @@ MenuViewModel::MenuViewModel(SystemStateModel *stateModel, QObject *parent)
     // Connect to state model for color updates
     if (m_stateModel) {
         connect(m_stateModel, &SystemStateModel::dataChanged, this, [this]() {
-            QColor newColor = ColorUtils::toQColor(m_stateModel->data().colorStyle);
+            QColor newColor = Qt::red ; //ColorUtils::toQColor(m_stateModel->data().colorStyle);
             if (newColor != m_accentColor) {
                 m_accentColor = newColor;
                 emit accentColorChanged();
@@ -286,8 +286,8 @@ void MenuViewModel::updateMenuOptions()
 
             // Set current selection to active color
             if (m_stateModel) {
-                int currentColor = static_cast<int>(m_stateModel->data().colorStyle);
-                setCurrentSelection(currentColor);
+               // int currentColor = static_cast<int>(m_stateModel->data().colorStyle);
+               // setCurrentSelection(currentColor);
             }
             break;
         }
