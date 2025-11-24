@@ -1,11 +1,12 @@
-QT       += core gui serialbus serialport dbus
+QT       += core gui  qml quick quickcontrols2  serialbus serialport dbus
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 CONFIG += c++17
 
 #CONFIG += opengles2
-
+INCLUDEPATH += "/usr/local/include/opencv4"
+INCLUDEPATH += "/usr/local/include/opencv4/opencv2"
 INCLUDEPATH += "/usr/include/vpi3"
 INCLUDEPATH += "/opt/nvidia/vpi3/include"
 INCLUDEPATH += /usr/include/SDL2
@@ -36,8 +37,8 @@ unix {
 }
 
 # Common configurations
-INCLUDEPATH += "/usr/include/opencv4"
-#INCLUDEPATH += "/usr/local/include/opencv4"
+#INCLUDEPATH += "/usr/include/opencv4"
+
 INCLUDEPATH += "/usr/include/eigen3"
 INCLUDEPATH += "/usr/include/glib-2.0"
 INCLUDEPATH += "/usr/include/gstreamer-1.0"
@@ -54,6 +55,11 @@ LIBS += -L/usr/local/lib -lopencv_core -lopencv_imgcodecs -lopencv_highgui -lope
 LIBS += -L/usr/local/lib -lopencv_core   -lopencv_dnn -lopencv_videoio
 PKGCONFIG += gstreamer-gl-1.0
 
+# Additional import path used to resolve QML modules in Qt Creator's code model
+QML_IMPORT_PATH = qml
+
+# Additional import path used to resolve QML modules just for Qt Quick Designer
+QML_DESIGNER_IMPORT_PATH =
 
 SOURCES += \
     controllers/cameracontroller.cpp \
@@ -95,6 +101,7 @@ SOURCES += \
     devices/servodriverdevice.cpp \
     models/joystickdatamodel.cpp \
     models/systemstatemodel.cpp \
+    ui/videoimageprovider.cpp \
     ui/zonedefinitionwidget.cpp \
     ui/zeroingwidget.cpp \
     ui/windagewidget.cpp \
@@ -103,7 +110,8 @@ SOURCES += \
     ui/cameracontainerwidget.cpp \
     utils/colorutils.cpp \
     utils/inference.cpp \
-    utils/reticleaimpointcalculator.cpp
+    utils/reticleaimpointcalculator.cpp \
+    viewmodels/osdviewmodel.cpp
 
 HEADERS += \
     controllers/cameracontroller.h \
@@ -157,6 +165,7 @@ HEADERS += \
     models/servodriverdatamodel.h \
     models/systemstatedata.h \
     models/systemstatemodel.h \
+    ui/videoimageprovider.h \
     ui/zonedefinitionwidget.h \
     ui/zeroingwidget.h \
     ui/windagewidget.h \
@@ -167,12 +176,14 @@ HEADERS += \
     utils/millenious.h \
     utils/inference.h \
     utils/reticleaimpointcalculator.h \
-    utils/targetstate.h
+    utils/targetstate.h \
+    viewmodels/osdviewmodel.h
 
 FORMS += \
     ui/mainwindow.ui
 
 #RESOURCES += resources.qrc
+RESOURCES += resources/qml.qrc
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin

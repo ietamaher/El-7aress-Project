@@ -90,6 +90,45 @@ MainWindow::MainWindow(GimbalController *gimbal,
 {
     ui->setupUi(this);
 
+    // ========================================================================
+    // QML INTEGRATION SETUP
+    // ========================================================================
+
+    // Create OsdViewModel
+    m_osdViewModel = new OsdViewModel(this);
+
+    // Create VideoImageProvider
+    m_videoImageProvider = new VideoImageProvider();
+
+    // Create QQuickView for QML rendering
+    m_qmlView = new QQuickView();
+    m_qmlView->setResizeMode(QQuickView::SizeRootObjectToView);
+
+    // Register image provider
+    m_qmlView->engine()->addImageProvider(QLatin1String("video"), m_videoImageProvider);
+
+    // Expose C++ objects to QML
+    QQmlContext *context = m_qmlView->rootContext();
+    context->setContextProperty("osdViewModel", m_osdViewModel);
+    context->setContextProperty("appController", this); // For button handlers
+
+    // Load main QML file
+    m_qmlView->setSource(QUrl("qrc:/qml/main.qml"));
+
+    // Embed QML view in Qt Widget UI (if using hybrid approach)
+    QWidget *qmlContainer = QWidget::createWindowContainer(m_qmlView, this);
+    qmlContainer->setMinimumSize(1024, 768);
+    qmlContainer->setMaximumSize(1024, 768);
+
+    // Replace or add to existing video label layout
+    if (ui->cameraContainerWidget && ui->cameraContainerWidget->layout()) {
+        ui->cameraContainerWidget->layout()->addWidget(qmlContainer);
+    } else {
+        // Create new layout if needed
+        QVBoxLayout *layout = new QVBoxLayout(ui->cameraContainerWidget);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->addWidget(qmlContainer);
+    }
     // --- Create OSD Renderers ---
     // Determine output dimensions (e.g., 960x720 from 4:3 crop)
     // These should ideally come from config or CameraVideoStreamDevice itself
@@ -162,6 +201,8 @@ MainWindow::MainWindow(GimbalController *gimbal,
 
     // Connect tracker signals
 
+
+
 }
 void MainWindow::onCameraControllerStatus(const QString& message) { //statusBar()->showMessage(message, 4000);
     }
@@ -194,6 +235,37 @@ void MainWindow::initializeUI()
 // *** Core Video Update Slot ***
 void MainWindow::handleFrameData(const FrameData &data)
 {
+    // Only process data for the currently selected camera view
+    if (data.cameraIndex != m_activeCameraIndex) {
+        return;
+    }
+
+    if (data.baseImage.isNull()) {
+        return;
+    }
+
+    // ========================================================================
+    // NEW: UPDATE VIDEO IMAGE PROVIDER (for QML video display)
+    // ========================================================================
+    if (m_videoImageProvider) {
+        m_videoImageProvider->updateFrame(data.baseImage);
+
+        // Force QML Image to refresh (emit signal or use timer in QML)
+        // The QML Timer already handles this via Date.now() in the source URL
+    }
+
+    // ========================================================================
+    // NEW: UPDATE OSD VIEW MODEL (for QML OSD overlay)
+    // ========================================================================
+    if (m_osdViewModel) {
+        m_osdViewModel->updateFromFrameData(data);
+    }
+
+    // ========================================================================
+    // LEGACY: Keep OsdRenderer for comparison/fallback (OPTIONAL - remove after testing)
+    // ========================================================================
+    /*
+
     // Only process data for the currently selected camera view
     if (data.cameraIndex != m_activeCameraIndex) {
         return; // Ignore data from the non-active processor
@@ -281,7 +353,8 @@ void MainWindow::handleFrameData(const FrameData &data)
 
     float currentTargetAngularRateEl = 0.0f; // deg/sec or rad/sec
     float muzzleVelocityMPS = 900.0f; // Example muzzle velocity, adjust as needed*/
-    currentRenderer->updateLeadAngleDisplay(
+
+   /* currentRenderer->updateLeadAngleDisplay(
         m_stateModel->data().leadAngleCompensationActive,
         m_stateModel->data().currentLeadAngleStatus,
         m_stateModel->data().leadAngleOffsetAz,
@@ -305,7 +378,7 @@ void MainWindow::handleFrameData(const FrameData &data)
         }
     } else if (ui->videoLabel) {
          ui->videoLabel->setText(QString("Render Error Cam %1").arg(data.cameraIndex + 1));
-    }
+    }*/
 }
 
 // Slot to react to system state changes

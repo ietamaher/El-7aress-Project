@@ -346,11 +346,11 @@ void OsdViewModel::updateFromFrameData(const FrameData &data)
     bool newDashed = false;
 
     switch (data.trackingState) {
-        case VPI_TRACKING_STATE_ACQUIRING:
+        /*case VPI_TRACKING_STATE_ACQUIRED:
             newBoxColor = "cyan";
             newDashed = true;
-            break;
-        case VPI_TRACKING_STATE_TRACKING:
+            break;*/
+        case VPI_TRACKING_STATE_TRACKED:
             newBoxColor = "green";
             newDashed = false;
             break;
@@ -632,8 +632,8 @@ QString OsdViewModel::formatFireMode(int fireMode) const
 {
     switch (static_cast<FireMode>(fireMode)) {
         case FireMode::SingleShot: return "SINGLE SHOT";
-        case FireMode::Burst: return "BURST";
-        case FireMode::FullAuto: return "FULL AUTO";
+        case FireMode::ShortBurst   : return "BURST";
+        case FireMode::LongBurst : return "FULL AUTO";
         default: return "UNKNOWN";
     }
 }
@@ -650,9 +650,9 @@ QVariantMap OsdViewModel::createDetectionBox(const YoloDetection &detection) con
 
     // Extract RGB color from detection.color (assuming it's a tuple or struct)
     // Adjust this based on your actual Detection struct definition
-    box["colorR"] = detection.color.red();
-    box["colorG"] = detection.color.green();
-    box["colorB"] = detection.color.blue();
+    /*box["colorR"] = detection.color.r();
+    box["colorG"] = detection.color.g();
+    box["colorB"] = detection.color.b();*/
 
     return box;
 }

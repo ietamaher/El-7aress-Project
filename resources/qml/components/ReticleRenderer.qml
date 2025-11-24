@@ -208,7 +208,7 @@ Item {
                     PathLine { x: 0; y: 100 }
 
                     // Tick marks every 15 pixels (represents distance)
-                    for (var i = 1; i <= 5; i++) {
+                    /*for (var i = 1; i <= 5; i++) {
                         var offset = i * 15;
                         // Right ticks
                         PathMove { x: offset; y: -5 }
@@ -222,7 +222,7 @@ Item {
                         // Top ticks
                         PathMove { x: -5; y: -offset }
                         PathLine { x: 5; y: -offset }
-                    }
+                    }*/
                 }
 
                 // Main
@@ -236,7 +236,7 @@ Item {
                     PathMove { x: 0; y: -100 }
                     PathLine { x: 0; y: 100 }
 
-                    for (var i = 1; i <= 5; i++) {
+                    /*for (var i = 1; i <= 5; i++) {
                         var offset = i * 15;
                         PathMove { x: offset; y: -5 }
                         PathLine { x: offset; y: 5 }
@@ -246,7 +246,7 @@ Item {
                         PathLine { x: 5; y: offset }
                         PathMove { x: -5; y: -offset }
                         PathLine { x: 5; y: -offset }
-                    }
+                    }*/
                 }
             }
 

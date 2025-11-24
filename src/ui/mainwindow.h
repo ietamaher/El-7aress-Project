@@ -17,6 +17,9 @@
 #include <QSet>
 #include <QSlider>
 #include <QLabel>
+#include <QQuickView>
+#include "videoimageprovider.h"
+#include "../viewmodels/osdviewmodel.h"
 
 // Forward Declarations (Controllers, Models, etc.)
 class GimbalController;
@@ -234,7 +237,9 @@ private:
     qint64 m_lastTrackButtonPressTime = 0; // For debouncing track button presses
     static constexpr int DOUBLE_CLICK_INTERVAL_MS = 1000; // 300ms for double-click
 
-
+    QQuickView *m_qmlView;
+    VideoImageProvider *m_videoImageProvider;
+    OsdViewModel *m_osdViewModel;
 };
 
 #endif // MAINWINDOW_H
