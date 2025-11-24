@@ -33,4 +33,44 @@ Rectangle {
         anchors.fill: parent
         z: 10
     }
+
+    // ========================================================================
+    // MENU SYSTEM (z: 100+)
+    // ========================================================================
+
+    // Main Menu
+    MainMenu {
+        id: mainMenu
+        anchors.fill: parent
+    }
+
+    // Reticle Submenu
+    SubMenu {
+        id: reticleMenu
+        menuType: "reticle"
+        anchors.fill: parent
+    }
+
+    // Color Submenu
+    SubMenu {
+        id: colorMenu
+        menuType: "color"
+        anchors.fill: parent
+    }
+
+    // Brightness Overlay
+    SimpleOverlay {
+        id: brightnessOverlay
+        overlayType: "brightness"
+    }
+
+    // About Dialog
+    SimpleOverlay {
+        id: aboutDialog
+        overlayType: "about"
+    }
+
+    // NOTE: Specialized overlays (Zeroing, Windage, Zone Definition, System Status)
+    // can remain as Qt Widgets or be ported to QML later
+    // They are shown/hidden via menuViewModel state management
 }

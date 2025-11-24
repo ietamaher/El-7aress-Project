@@ -97,6 +97,9 @@ MainWindow::MainWindow(GimbalController *gimbal,
     // Create OsdViewModel
     m_osdViewModel = new OsdViewModel(this);
 
+    // Create MenuViewModel
+    m_menuViewModel = new MenuViewModel(m_stateModel, this);
+
     // Create VideoImageProvider
     m_videoImageProvider = new VideoImageProvider();
 
@@ -110,7 +113,16 @@ MainWindow::MainWindow(GimbalController *gimbal,
     // Expose C++ objects to QML
     QQmlContext *context = m_qmlView->rootContext();
     context->setContextProperty("osdViewModel", m_osdViewModel);
+    context->setContextProperty("menuViewModel", m_menuViewModel);
     context->setContextProperty("appController", this); // For button handlers
+
+    // Connect MenuViewModel signals for hardware actions
+    connect(m_menuViewModel, &MenuViewModel::requestIncreaseBrightness,
+            this, &MainWindow::increaseBrightness);
+    connect(m_menuViewModel, &MenuViewModel::requestDecreaseBrightness,
+            this, &MainWindow::decreaseBrightness);
+    connect(m_menuViewModel, &MenuViewModel::requestClearAlarms,
+            this, &MainWindow::handleClearAlarmsRequest);
 
     // Load main QML file
     m_qmlView->setSource(QUrl("qrc:/qml/main.qml"));
@@ -640,17 +652,14 @@ void MainWindow::onModalWidgetClosed() {
 //m_cameraCtrl->setActiveCamera(m_isDayCameraActive);
 void MainWindow::onUpSwChanged()
 {
-    if (m_brightnessControlActive && m_brightnessMenuWidget) {
-        increaseBrightness();
-    } else  if (m_systemStatusActive && m_systemStatusWidget) { // <<< ADDED THIS CASE FIRST
-        m_systemStatusWidget->moveSelectionUp();
-    } else if (m_reticleMenuActive && m_reticleMenuWidget) {
-        m_reticleMenuWidget->moveSelectionUp();
-    } else if (m_colorMenuActive && m_colorMenuWidget) {
-        m_colorMenuWidget->moveSelectionUp();
-    } else if (m_menuActive && m_menuWidget) {
-        m_menuWidget->moveSelectionUp();
-    } else if (m_zoneDefinitionControllerWidget && m_zoneDefinitionControllerWidget->isVisible()) {
+    // PRIORITY 1: QML Menu System (via MenuViewModel)
+    if (m_menuViewModel && m_menuViewModel->currentMenuState() != MenuViewModel::Idle) {
+        m_menuViewModel->moveUp();
+        return;
+    }
+
+    // PRIORITY 2: Legacy Qt Widget menus (fallback for complex widgets not yet ported)
+    if (m_zoneDefinitionControllerWidget && m_zoneDefinitionControllerWidget->isVisible()) {
         m_zoneDefinitionControllerWidget->handleUpNavigation();
     }
     else if (m_zeroingWidget && m_zeroingWidget->isVisible()) {
@@ -664,51 +673,49 @@ void MainWindow::onUpSwChanged()
 
 void MainWindow::onDownSwChanged()
 {
-    if (m_brightnessControlActive && m_brightnessMenuWidget) {
-        decreaseBrightness();
-    } else if (m_systemStatusActive && m_systemStatusWidget) { // <<< ADDED THIS CASE FIRST
-            m_systemStatusWidget->moveSelectionDown();
-        } else if (m_reticleMenuActive && m_reticleMenuWidget) {
-            m_reticleMenuWidget->moveSelectionDown();
-        } else if (m_colorMenuActive && m_colorMenuWidget) {
-            m_colorMenuWidget->moveSelectionDown();
-        } else if (m_menuActive && m_menuWidget) {
-            m_menuWidget->moveSelectionDown();
-        } else if (m_zoneDefinitionControllerWidget && m_zoneDefinitionControllerWidget->isVisible()) {
-            m_zoneDefinitionControllerWidget->handleDownNavigation();
-        }
+    // PRIORITY 1: QML Menu System (via MenuViewModel)
+    if (m_menuViewModel && m_menuViewModel->currentMenuState() != MenuViewModel::Idle) {
+        m_menuViewModel->moveDown();
+        return;
+    }
+
+    // PRIORITY 2: Legacy Qt Widget menus (fallback for complex widgets not yet ported)
+    if (m_zoneDefinitionControllerWidget && m_zoneDefinitionControllerWidget->isVisible()) {
+        m_zoneDefinitionControllerWidget->handleDownNavigation();
+    }
     else if (m_zeroingWidget && m_zeroingWidget->isVisible()) {
         m_zeroingWidget->handleDownAction();
     } else if (m_windageWidget && m_windageWidget->isVisible()) {
         m_windageWidget->handleDownAction();
-    } else if (m_radarWidget && m_radarWidget->isVisible()) { // <<< ADD THIS
+    } else if (m_radarWidget && m_radarWidget->isVisible()) {
         m_radarWidget->moveSelectionDown();
     }
 }
 
-    void MainWindow::onMenuValSwChanged()
+void MainWindow::onMenuValSwChanged()
 {
-    if (m_brightnessControlActive && m_brightnessMenuWidget) {
-        // Close the brightness control widget
-        m_brightnessMenuWidget->close();
-        m_brightnessMenuWidget = nullptr;
-        m_brightnessControlActive = false;
-    } else if (m_systemStatusActive && m_systemStatusWidget) {
-        m_systemStatusWidget->selectCurrentItem();
-    } else if (m_reticleMenuActive && m_reticleMenuWidget) {
-        m_reticleMenuWidget->selectCurrentItem();
-    } else if (m_colorMenuActive && m_colorMenuWidget) {
-        m_colorMenuWidget->selectCurrentItem();
-    } else if (m_zoneDefinitionControllerWidget && m_zoneDefinitionControllerWidget->isVisible()) {
+    // PRIORITY 1: QML Menu System (via MenuViewModel)
+    if (m_menuViewModel) {
+        // If in idle mode and MENU button pressed, show main menu
+        if (m_menuViewModel->currentMenuState() == MenuViewModel::Idle &&
+            m_stateModel->data().opMode == OperationalMode::Idle) {
+            m_menuViewModel->showMainMenu();
+            return;
+        }
+        // If already in a menu, select current item
+        else if (m_menuViewModel->currentMenuState() != MenuViewModel::Idle) {
+            m_menuViewModel->selectCurrent();
+            return;
+        }
+    }
+
+    // PRIORITY 2: Legacy Qt Widget menus (fallback for complex widgets not yet ported)
+    if (m_zoneDefinitionControllerWidget && m_zoneDefinitionControllerWidget->isVisible()) {
         m_zoneDefinitionControllerWidget->handleSelectAction();
     } else if (m_zeroingWidget && m_zeroingWidget->isVisible()) {
         m_zeroingWidget->handleSelectAction();
     } else if (m_windageWidget && m_windageWidget->isVisible()) {
         m_windageWidget->handleSelectAction();
-    } else if (m_menuActive && m_menuWidget) {
-        m_menuWidget->selectCurrentItem();
-    } else if (m_stateModel->data().opMode == OperationalMode::Idle) {
-        showIdleMenu();
     } else if (m_radarWidget && m_radarWidget->isVisible()) {
         m_radarWidget->selectCurrentItem();
     }

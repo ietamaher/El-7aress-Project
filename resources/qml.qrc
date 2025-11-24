@@ -4,6 +4,9 @@
         <file>qml/components/ReticleRenderer.qml</file>
         <file>qml/components/CcipPipper.qml</file>
         <file>qml/components/TrackingBox.qml</file>
+        <file>qml/components/MainMenu.qml</file>
+        <file>qml/components/SubMenu.qml</file>
+        <file>qml/components/SimpleOverlay.qml</file>
         <file>qml/main.qml</file>
     </qresource>
 </RCC>

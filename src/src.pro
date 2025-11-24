@@ -114,7 +114,8 @@ SOURCES += \
     utils/colorutils.cpp \
     utils/inference.cpp \
     utils/reticleaimpointcalculator.cpp \
-    viewmodels/osdviewmodel.cpp
+    viewmodels/osdviewmodel.cpp \
+    viewmodels/menuviewmodel.cpp
 
 HEADERS += \
     controllers/cameracontroller.h \
@@ -180,7 +181,8 @@ HEADERS += \
     utils/inference.h \
     utils/reticleaimpointcalculator.h \
     utils/targetstate.h \
-    viewmodels/osdviewmodel.h
+    viewmodels/osdviewmodel.h \
+    viewmodels/menuviewmodel.h
 
 FORMS += \
     ui/mainwindow.ui

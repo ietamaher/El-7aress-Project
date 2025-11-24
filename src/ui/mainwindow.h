@@ -23,6 +23,7 @@
 #include <QUrl>
 #include "videoimageprovider.h"
 #include "../viewmodels/osdviewmodel.h"
+#include "../viewmodels/menuviewmodel.h"
 
 // Forward Declarations (Controllers, Models, etc.)
 class GimbalController;
@@ -245,6 +246,7 @@ private:
     QWidget *m_qmlContainer;
     VideoImageProvider *m_videoImageProvider;
     OsdViewModel *m_osdViewModel;
+    MenuViewModel *m_menuViewModel;
 
 protected:
     // Override to handle window resize for QML container
