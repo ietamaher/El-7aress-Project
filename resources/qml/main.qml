@@ -2,12 +2,10 @@ import QtQuick
 import QtQuick.Controls
 import "qrc:/qml/components"
 
-Window {
+Rectangle {
     id: mainWindow
-    visible: true
     width: 1024
     height: 768
-    title: "RCWS System"
     color: "black"
 
     // Video feed
