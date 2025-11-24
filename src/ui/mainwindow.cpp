@@ -172,10 +172,10 @@ MainWindow::MainWindow(GimbalController *gimbal,
     m_environmentalController->setStateModel(m_stateModel);
 
     m_zoneDefinitionController->setViewModel(m_zoneDefinitionViewModel);
-    m_zoneDefinitionController->setZoneMapViewModel(m_zoneMapViewModel);
-    m_zoneDefinitionController->setAreaZoneViewModel(m_areaZoneParameterViewModel);
-    m_zoneDefinitionController->setSectorScanViewModel(m_sectorScanParameterViewModel);
-    m_zoneDefinitionController->setTRPViewModel(m_trpParameterViewModel);
+    m_zoneDefinitionController->setMapViewModel(m_zoneMapViewModel);
+    m_zoneDefinitionController->setParameterViewModels(m_areaZoneParameterViewModel,
+                                                       m_sectorScanParameterViewModel,
+                                                       m_trpParameterViewModel);
     m_zoneDefinitionController->setStateModel(m_stateModel);
 
     m_systemStatusController->setViewModel(m_systemStatusViewModel);
@@ -423,10 +423,10 @@ void MainWindow::handleFrameData(const FrameData &data)
     }
 
     // ========================================================================
-    // NEW: UPDATE OSD VIEW MODEL (for QML OSD overlay)
+    // NEW: UPDATE OSD via OsdController (for QML OSD overlay)
     // ========================================================================
-    if (m_osdViewModel) {
-        m_osdViewModel->updateFromFrameData(data);
+    if (m_osdController) {
+        m_osdController->onFrameDataReady(data);
     }
 
     // ========================================================================
