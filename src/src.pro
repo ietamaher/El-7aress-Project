@@ -43,6 +43,10 @@ INCLUDEPATH += "/usr/include/eigen3"
 INCLUDEPATH += "/usr/include/glib-2.0"
 INCLUDEPATH += "/usr/include/gstreamer-1.0"
 
+# Add project directories for includes
+INCLUDEPATH += .              # src/ directory (for models/systemstatemodel.h, etc.)
+INCLUDEPATH += ../features    # features/ directory (for feature architecture)
+
 CONFIG += link_pkgconfig
 PKGCONFIG += gstreamer-1.0
 PKGCONFIG += gstreamer-video-1.0
