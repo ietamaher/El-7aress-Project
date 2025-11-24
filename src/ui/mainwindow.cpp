@@ -115,20 +115,49 @@ MainWindow::MainWindow(GimbalController *gimbal,
     // Load main QML file
     m_qmlView->setSource(QUrl("qrc:/qml/main.qml"));
 
+    // Check for QML loading errors
+    if (m_qmlView->status() == QQuickView::Error) {
+        qCritical() << "[MainWindow] QML loading FAILED with errors:";
+        for (const QQmlError &error : m_qmlView->errors()) {
+            qCritical() << "  " << error.toString();
+        }
+    } else {
+        qDebug() << "[MainWindow] QML loaded successfully - status:" << m_qmlView->status();
+    }
+
     // Embed QML view in Qt Widget UI (if using hybrid approach)
     QWidget *qmlContainer = QWidget::createWindowContainer(m_qmlView, this);
     qmlContainer->setMinimumSize(1024, 768);
     qmlContainer->setMaximumSize(1024, 768);
+    qmlContainer->setObjectName("qmlContainer"); // For debugging
+
+    // CRITICAL: Hide old videoLabel if it exists (to prevent blocking QML)
+    if (ui->videoLabel) {
+        qDebug() << "[MainWindow] Hiding old videoLabel to show QML view";
+        ui->videoLabel->hide();
+        ui->videoLabel->setVisible(false);
+    }
 
     // Replace or add to existing video label layout
     if (ui->cameraContainerWidget && ui->cameraContainerWidget->layout()) {
+        qDebug() << "[MainWindow] Adding QML container to existing layout";
         ui->cameraContainerWidget->layout()->addWidget(qmlContainer);
     } else {
         // Create new layout if needed
+        qDebug() << "[MainWindow] Creating new layout for QML container";
         QVBoxLayout *layout = new QVBoxLayout(ui->cameraContainerWidget);
         layout->setContentsMargins(0, 0, 0, 0);
         layout->addWidget(qmlContainer);
     }
+
+    // Force QML container to be visible and on top
+    qmlContainer->show();
+    qmlContainer->raise();
+    qmlContainer->setFocus();
+
+    qDebug() << "[MainWindow] QML container created - visible:" << qmlContainer->isVisible()
+             << "size:" << qmlContainer->size()
+             << "geometry:" << qmlContainer->geometry();
     // --- Create OSD Renderers ---
     // Determine output dimensions (e.g., 960x720 from 4:3 crop)
     // These should ideally come from config or CameraVideoStreamDevice itself
