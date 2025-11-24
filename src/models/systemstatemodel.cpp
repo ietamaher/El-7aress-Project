@@ -693,8 +693,8 @@ void SystemStateModel::onPlc42DataChanged(const Plc42Data &pData)
 
     // Additional station inputs (if needed)
     newData.stationAmmunitionLevel = pData.ammunitionLevel;        // DataModel::m_stationAmmunitionLevel
-    newData.stationInput1 = pData.stationInput1;                 // DataModel::m_stationInput1
-    newData.stationInput2 = pData.stationInput2;                 // DataModel::m_stationInput2
+    newData.hatchState = pData.hatchState;                 // DataModel::m_stationInput1
+    newData.freeGimbalState = pData.freeGimbalState;                 // DataModel::m_stationInput2
     newData.stationInput3 = pData.stationInput3;                 // DataModel::m_stationInput3
 
     newData.solenoidMode     = pData.solenoidMode;

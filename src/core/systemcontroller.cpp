@@ -261,7 +261,7 @@ void SystemController::showMainWindow()
                                   m_systemStateModel,
                                   m_dayVideoProcessor,
                                   m_nightVideoProcessor);
-    //m_mainWindow->show();
-    m_mainWindow->showFullScreen();
+    m_mainWindow->show();
+    //m_mainWindow->showFullScreen();
 }
 

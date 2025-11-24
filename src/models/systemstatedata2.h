@@ -45,7 +45,7 @@
 #include <QPointF>
 #include <QtGlobal> // For qFuzzyCompare
 #include <vector>
-#include "../utils/colorutils.h" // For ColorUtils
+#include "utils/colorutils.h" // For ColorUtils
 #include <vpi/algo/DCFTracker.h> // VPITrackingState, VPIDCFTrackedBoundingBox
 
 // =================================
@@ -70,12 +70,12 @@ const QColor COLOR_TRACKING_FIRING = QColor(255, 255, 0); ///< Firing mode activ
  * @brief Available reticle types for weapon aiming system
  */
 enum class ReticleType {
-    Basic,              ///< Simple crosshair reticle
-    BoxCrosshair,       ///< Box-style crosshair with corner markers
-    StandardCrosshair,  ///< Standard military crosshair
-    PrecisionCrosshair, ///< High-precision crosshair with fine markings
-    MilDot,            ///< Military dot reticle for range estimation
-    COUNT              ///< Total number of reticle types (for iteration)
+    BoxCrosshair,       ///< Box-style crosshair with center box (General purpose - NATO standard)
+    BracketsReticle,    ///< Corner brackets style with crosshair (Enhanced visibility)
+    DuplexCrosshair,    ///< Thick outer, thin inner crosshair (Sniper/precision style)
+    FineCrosshair,      ///< Thin precision crosshair with range ticks (Long range)
+    ChevronReticle,     ///< Downward pointing chevron with holdover marks (CQB style)
+    COUNT               ///< Total number of reticle types (for iteration)
 };
 
 /**
@@ -359,26 +359,26 @@ struct SystemStateData {
     // =================================
     // Day Camera
     double dayZoomPosition = 0.0;       ///< Day camera zoom position (0-1 normalized)
-    double dayCurrentHFOV = 9.0;        ///< Day camera current horizontal field of view in degrees    
-    double dayCurrentVFOV = 9.0;        ///< Day camera current vertical field of view in degrees (approx. same as H for day camera)    
+    double dayCurrentHFOV = 9.0;        ///< Day camera current horizontal field of view in degrees
+    double dayCurrentVFOV = 9.0;        ///< Day camera current vertical field of view in degrees (approx. same as H for day camera)
     bool dayCameraConnected = false;    ///< Day camera connection status
     bool dayCameraError = false;        ///< Day camera error status
     quint8 dayCameraStatus = 0;         ///< Day camera detailed status code
     bool dayAutofocusEnabled = true;    ///< Day camera autofocus enabled status
     quint16 dayFocusPosition = 0;       ///< Day camera focus position (12-bit max)
-    
+
     // Night Camera
     double nightZoomPosition = 0.0;     ///< Night camera zoom position (0-1 normalized)
-      double nightCurrentHFOV = 10.4;     ///< Night camera current horizontal field of view in degrees (FLIR TAU 2 wide: 10.4°×8°, narrow: 5.2°×4°)
+    double nightCurrentHFOV = 10.4;     ///< Night camera current horizontal field of view in degrees (FLIR TAU 2 wide: 10.4°×8°, narrow: 5.2°×4°)
     double nightCurrentVFOV = 8.0;      ///< Night camera current vertical field of view in degrees (NOT square sensor! 640×512)
     bool nightCameraConnected = false;  ///< Night camera connection status
-       bool nightCameraError = false;      ///< Night camera error status (true if errorState != 0x00)
+    bool nightCameraError = false;      ///< Night camera error status (true if errorState != 0x00)
     quint8 nightCameraStatus = 0;       ///< Night camera detailed status code
     quint8 nightDigitalZoomLevel = 1;   ///< Night camera digital zoom level (FIXED TYPE: was bool, now quint8)
     bool nightFfcInProgress = false;    ///< Night camera FFC (Flat Field Correction) in progress status
     quint16 nightVideoMode = 0;         ///< Night camera video mode (e.g., 0=Normal, 1=Low Light, etc.)
     qint16 nightFpaTemperature = 0;     ///< Night camera FPA temperature in Celsius × 10
-        
+
     // Camera Control
     bool activeCameraIsDay = false;     ///< True if day camera is active, false if night camera
     
@@ -392,7 +392,7 @@ struct SystemStateData {
     bool azServoConnected = false;      ///< Azimuth servo connection status
     float azMotorTemp = 0.0f;           ///< Azimuth motor temperature in Celsius
     float azDriverTemp = 0.0f;          ///< Azimuth driver temperature in Celsius
-        float azRpm = 0.0f;                 ///< Azimuth servo RPM
+    float azRpm = 0.0f;                 ///< Azimuth servo RPM
     float azTorque = 0.0f;              ///< Azimuth servo torque percentage (0-100)
     bool azFault = false;               ///< Azimuth servo fault status
 
@@ -406,7 +406,7 @@ struct SystemStateData {
 
     float reticleAz = 0.0f;             ///< Reticle azimuth position in degrees
     float reticleEl = 0.0f;             ///< Reticle elevation position in degrees
- 
+
 
     // =================================
     // SERVO ACTUATOR  
@@ -420,8 +420,8 @@ struct SystemStateData {
     bool actuatorMotorOff = false;       ///< Actuator motor off status
     bool actuatorFault = false;          ///< Actuator fault/latching fault status
  
-    
 
+    
     // =================================
     // ORIENTATION & STABILIZATION
     // =================================
@@ -448,7 +448,7 @@ struct SystemStateData {
     bool isVehicleStationary = false;   ///< Flag indicating if the vehicle is stationary
     double previousAccelMagnitude = 0.0; ///< Previous accelerometer magnitude for delta calculation
     QDateTime stationaryStartTime;      ///< Timestamp when stationary conditions began
-
+    
     // =================================
     // LASER RANGE FINDER (LRF)
     // =================================
@@ -472,8 +472,8 @@ struct SystemStateData {
     // =================================
     // JOYSTICK & MANUAL CONTROLS
     // =================================
-    bool joystickConnected = false;     ///< Joystick connection status    
-    bool deadManSwitchActive = false;   ///< Safety dead man switch status
+    bool joystickConnected = false;     ///< Joystick connection status
+    bool deadManSwitchActive = true;   ///< Safety dead man switch status
     float joystickAzValue = 0.0f;       ///< Joystick azimuth axis value (-1.0 to 1.0)
     float joystickElValue = 0.0f;       ///< Joystick elevation axis value (-1.0 to 1.0)
     bool upTrackButton = false;         ///< Up track button status
@@ -502,18 +502,18 @@ struct SystemStateData {
     // =================================
     // GIMBAL STATION HARDWARE (PLC42)
     // =================================
-    // Limit Sensors  
+    // Limit Sensors
     bool plc42Connected = false;          ///< PLC42 connection status
     bool upperLimitSensorActive = false; ///< Upper travel limit sensor status
     bool lowerLimitSensorActive = false; ///< Lower travel limit sensor status
-
+    
     // Station Inputs
     bool stationAmmunitionLevel = false; ///< Station ammunition level sensor
     bool hatchState = false;          ///< General station input 1
     bool freeGimbalState = false;          ///< General station input 2
     bool stationInput3 = false;          ///< General station input 3
      bool azimuthHomeComplete = false;      ///< Az HOME-END signal from Oriental Motor (DI6/I0_6)
-    bool elevationHomeComplete = false;    ///< El HOME-END signal from Oriental Motor (DI7/I0_7)       
+    bool elevationHomeComplete = false;    ///< El HOME-END signal from Oriental Motor (DI7/I0_7)   
     // Environmental Monitoring
     int panelTemperature = 0;            ///< Control panel temperature in Celsius
     int stationTemperature = 0;          ///< Station ambient temperature in Celsius
@@ -532,7 +532,7 @@ struct SystemStateData {
     uint16_t stopGimbal = 0;      ///< Stop gimbal command
 
    // In "OPERATIONAL STATE & MODES" section, ADD:
-    HomingState homingState = HomingState::Idle;  ///< Current homing sequence state    
+    HomingState homingState = HomingState::Idle;  ///< Current homing sequence state
     // =================================
     // TRACKING SYSTEM
     // =================================
@@ -589,7 +589,7 @@ struct SystemStateData {
     bool environmentalModeActive = false;   ///< Environmental settings mode active status
     float environmentalTemperatureCelsius = 15.0f; ///< Air temperature in degrees Celsius (ISO standard: 15°C)
     float environmentalAltitudeMeters = 0.0f;      ///< Altitude above sea level in meters
-    bool environmentalAppliedToBallistics = false; ///< Whether environmental settings are applied        
+    bool environmentalAppliedToBallistics = false; ///< Whether environmental settings are applied    
     // Lead Angle Compensation
     bool leadAngleCompensationActive = false;           ///< Lead angle compensation active status
     LeadAngleStatus currentLeadAngleStatus = LeadAngleStatus::Off; ///< Current lead angle system status
@@ -653,11 +653,11 @@ struct SystemStateData {
      * 
      * NOTE: This operator now includes ALL member variables for complete state comparison
      */
-     bool operator==(const SystemStateData& other) const {
+    bool operator==(const SystemStateData& other) const {
         return 
-             // Operational State & Modes
-            opMode == other.opMode && 
-              motionMode == other.motionMode && 
+               // Operational State & Modes
+               opMode == other.opMode && 
+               motionMode == other.motionMode && 
                previousOpMode == other.previousOpMode &&
                previousMotionMode == other.previousMotionMode &&
                
@@ -682,13 +682,17 @@ struct SystemStateData {
                currentTRPScanName == other.currentTRPScanName &&
                isReticleInNoFireZone == other.isReticleInNoFireZone &&
                isReticleInNoTraverseZone == other.isReticleInNoTraverseZone &&
+               
+               // Camera Systems - Day Camera
                qFuzzyCompare(dayZoomPosition, other.dayZoomPosition) &&
                qFuzzyCompare(dayCurrentHFOV, other.dayCurrentHFOV) &&
+               qFuzzyCompare(dayCurrentVFOV, other.dayCurrentVFOV) &&
                dayCameraConnected == other.dayCameraConnected &&
                dayCameraError == other.dayCameraError &&
                dayCameraStatus == other.dayCameraStatus &&
                dayAutofocusEnabled == other.dayAutofocusEnabled &&
                dayFocusPosition == other.dayFocusPosition &&
+
                // Camera Systems - Night Camera
                qFuzzyCompare(nightZoomPosition, other.nightZoomPosition) &&
                qFuzzyCompare(nightCurrentHFOV, other.nightCurrentHFOV) &&
@@ -874,14 +878,15 @@ struct SystemStateData {
                qFuzzyCompare(currentTargetAngularRateAz, other.currentTargetAngularRateAz) &&
                qFuzzyCompare(currentTargetAngularRateEl, other.currentTargetAngularRateEl) &&
                qFuzzyCompare(muzzleVelocityMPS, other.muzzleVelocityMPS) &&
+
+               // Status & Information Display
                weaponSystemStatus == other.weaponSystemStatus &&
                targetInformation == other.targetInformation &&
                gpsCoordinates == other.gpsCoordinates &&
                sensorReadings == other.sensorReadings &&
                alertsWarnings == other.alertsWarnings &&
                leadStatusText == other.leadStatusText &&
-               zeroingStatusText == other.zeroingStatusText&&
-               (radarPlots == other.radarPlots);
+               zeroingStatusText == other.zeroingStatusText;
     }
     
     bool operator!=(const SystemStateData& other) const {

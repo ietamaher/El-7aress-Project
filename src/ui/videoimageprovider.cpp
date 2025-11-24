@@ -20,12 +20,12 @@ QImage VideoImageProvider::requestImage(const QString &id, QSize *size, const QS
 
     // DEBUG: Log every request
     static int requestCount = 0;
-    if (requestCount % 30 == 0) { // Log every 30th request (~1 second at 30fps)
+    /*if (requestCount % 30 == 0) { // Log every 30th request (~1 second at 30fps)
         qDebug() << "[VideoImageProvider] requestImage called - id:" << id
                  << "size:" << m_currentFrame.size()
                  << "format:" << m_currentFrame.format()
                  << "isNull:" << m_currentFrame.isNull();
-    }
+    }*/
     requestCount++;
 
     if (size) {
@@ -44,13 +44,13 @@ void VideoImageProvider::updateFrame(const QImage &frame)
     }
 
     // DEBUG: Log frame updates
-    static int updateCount = 0;
+    /*static int updateCount = 0;
     if (updateCount % 30 == 0) { // Log every 30th update (~1 second at 30fps)
         qDebug() << "[VideoImageProvider] updateFrame called - size:" << frame.size()
                  << "format:" << frame.format()
                  << "bytesPerLine:" << frame.bytesPerLine();
     }
-    updateCount++;
+    updateCount++;*/
 
     QMutexLocker locker(&m_mutex);
 

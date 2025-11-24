@@ -90,8 +90,8 @@ void Plc42Device::onDigitalInputsReadReady(QModbusReply *reply)
             newData.stationLowerSensor  = (unit.value(1) != 0);
             newData.emergencyStopActive = (unit.value(2) != 0);
             newData.ammunitionLevel     = (unit.value(3) != 0);
-            newData.stationInput1       = (unit.value(4) != 0);
-            newData.stationInput2       = (unit.value(5) != 0);
+            newData.hatchState       = (unit.value(4) != 0);
+            newData.freeGimbalState       = (unit.value(5) != 0);
             newData.stationInput3       = (unit.value(6) != 0);
             newData.solenoidActive      = (unit.value(7) != 0);
         } else {

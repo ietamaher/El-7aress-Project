@@ -58,8 +58,8 @@ struct Plc42Data {
     bool stationLowerSensor      = false; ///< State of the station lower sensor.
     bool emergencyStopActive     = false; ///< State of the emergency stop.
     bool ammunitionLevel         = false; ///< State of the ammunition level.
-    bool stationInput1           = false; ///< State of station input 1.
-    bool stationInput2           = false; ///< State of station input 2.
+    bool hatchState           = false; ///< State of station input 1.
+    bool freeGimbalState           = false; ///< State of station input 2.
     bool stationInput3           = false; ///< State of station input 3.
     bool solenoidActive          = false; ///< State of solenoid activation.
 
@@ -85,8 +85,8 @@ struct Plc42Data {
             stationLowerSensor      == other.stationLowerSensor &&
             emergencyStopActive     == other.emergencyStopActive &&
             ammunitionLevel         == other.ammunitionLevel &&
-            stationInput1           == other.stationInput1 &&
-            stationInput2           == other.stationInput2 &&
+            hatchState           == other.hatchState &&
+            freeGimbalState           == other.freeGimbalState &&
             stationInput3           == other.stationInput3 &&
             solenoidActive          == other.solenoidActive &&
             solenoidMode            == other.solenoidMode &&

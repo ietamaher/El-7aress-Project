@@ -355,7 +355,7 @@ bool CameraVideoStreamDevice::initializeGStreamer()
         .arg(m_cropLeft)
         .arg(m_cropRight);*/
 
-      pipelineStr = QString(
+     QString pipelineStr = QString(
                               "v4l2src device=%1 do-timestamp=true ! "
                               "image/jpeg,width=%2,height=%3,framerate=30/1 ! jpegdec ! video/x-raw ! "
                               "aspectratiocrop aspect-ratio=4/3 ! "
