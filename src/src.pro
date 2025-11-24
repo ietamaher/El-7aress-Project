@@ -183,7 +183,7 @@ FORMS += \
     ui/mainwindow.ui
 
 #RESOURCES += resources.qrc
-RESOURCES += resources/qml.qrc
+RESOURCES += ../resources/qml.qrc
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin

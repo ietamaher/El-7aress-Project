@@ -1,5 +1,5 @@
 <RCC>
-    <qresource prefix="/qml">
+    <qresource prefix="/">
         <file>qml/OsdOverlay.qml</file>
         <file>qml/components/ReticleRenderer.qml</file>
         <file>qml/components/CcipPipper.qml</file>
