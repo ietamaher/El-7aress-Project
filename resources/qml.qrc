@@ -1,31 +1,20 @@
 <RCC>
     <qresource prefix="/">
-        <!-- Main application -->
-        <file>../features/qml/main.qml</file>
-
-        <!-- OSD and overlays -->
-        <file>../features/qml/OsdOverlay.qml</file>
-
-        <!-- Reticle and tracking components -->
-        <file>../features/qml/ReticleRenderer.qml</file>
-        <file>../features/qml/CcipPipper.qml</file>
-        <file>../features/qml/TrackingBox.qml</file>
-
-        <!-- Menus -->
-        <file>../features/qml/MainMenu.qml</file>
-
-        <!-- Feature overlays -->
-        <file>../features/qml/ZeroingOverlay.qml</file>
-        <file>../features/qml/WindageOverlay.qml</file>
-        <file>../features/qml/EnvironmentalOverlay.qml</file>
-        <file>../features/qml/ZoneDefinitionOverlay.qml</file>
-        <file>../features/qml/SystemStatusOverlay.qml</file>
-        <file>../features/qml/AboutDialog.qml</file>
-
-        <!-- Parameter panels -->
-        <file>../features/qml/AreaZoneParameterPanel.qml</file>
-        <file>../features/qml/SectorScanParameterPanel.qml</file>
-        <file>../features/qml/TRPParameterPanel.qml</file>
-        <file>../features/qml/ZoneMapCanvas.qml</file>
+        <file>qml/OsdOverlay.qml</file>
+        <file>qml/main.qml</file>
+        <file>qml/SystemStatusOverlay.qml</file>
+        <file>qml/WindageOverlay.qml</file>
+        <file>qml/EnvironmentalOverlay.qml</file>
+        <file>qml/ReticleRenderer.qml</file>
+        <file>qml/CcipPipper.qml</file>
+        <file>qml/ZoneMapCanvas.qml</file>
+        <file>qml/ZoneDefinitionOverlay.qml</file>
+        <file>qml/ZeroingOverlay.qml</file>
+        <file>qml/TRPParameterPanel.qml</file>
+        <file>qml/TrackingBox.qml</file>
+        <file>qml/SectorScanParameterPanel.qml</file>
+        <file>qml/AreaZoneParameterPanel.qml</file>
+        <file>qml/AboutDialog.qml</file>
+        <file>qml/MainMenu.qml</file>
     </qresource>
 </RCC>

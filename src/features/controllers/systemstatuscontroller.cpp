@@ -1,6 +1,6 @@
 #include "systemstatuscontroller.h"
 #include "../models/systemstatusviewmodel.h"
-#include "../../src/models/systemstatemodel.h"
+#include "../src/models/systemstatemodel.h"
 #include <QDebug>
 
 SystemStatusController::SystemStatusController(QObject *parent)

@@ -1,7 +1,5 @@
 import QtQuick
 import QtQuick.Shapes
-import "components"
-
 
 Item {
     id: osdRoot
@@ -886,12 +884,12 @@ Item {
             color: accentColor
 
             // Blinking animation
-            /*SequentialAnimation on opacity {
+            SequentialAnimation on opacity {
                 running: parent.parent.visible
                 loops: Animation.Infinite
                 NumberAnimation { from: 1.0; to: 0.7; duration: 800 }
                 NumberAnimation { from: 0.7; to: 1.0; duration: 800 }
-            }*/
+            }
         }
     }
 
@@ -963,12 +961,12 @@ Item {
                 color: cautionColor
 
                 // Blinking animation
-                /*SequentialAnimation on opacity {
+                SequentialAnimation on opacity {
                     running: parent.parent.parent.visible
                     loops: Animation.Infinite
                     NumberAnimation { from: 1.0; to: 0.4; duration: 600 }
                     NumberAnimation { from: 0.4; to: 1.0; duration: 600 }
-                }*/
+                }
             }
         }
     }

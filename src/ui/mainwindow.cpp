@@ -6,31 +6,34 @@
 #include "../controllers/joystickcontroller.h"
 
 // Feature ViewModels
-#include "../features/models/osdviewmodel.h"
-#include "../features/models/menuviewmodel.h"
-#include "../features/models/zeroingviewmodel.h"
-#include "../features/models/windageviewmodel.h"
-#include "../features/models/environmentalviewmodel.h"
-#include "../features/models/zonedefinitionviewmodel.h"
-#include "../features/models/zonemapviewmodel.h"
-#include "../features/models/systemstatusviewmodel.h"
-#include "../features/models/aboutviewmodel.h"
-#include "../features/models/areazoneparameterviewmodel.h"
-#include "../features/models/sectorscanparameterviewmodel.h"
-#include "../features/models/trpparameterviewmodel.h"
+#include "features/models/osdviewmodel.h"
+#include "features/models/menuviewmodel.h"
+#include "features/models/zeroingviewmodel.h"
+#include "features/models/windageviewmodel.h"
+#include "features/models/environmentalviewmodel.h"
+#include "features/models/zonedefinitionviewmodel.h"
+#include "features/models/zonemapviewmodel.h"
+#include "features/models/systemstatusviewmodel.h"
+#include "features/models/aboutviewmodel.h"
+#include "features/models/areazoneparameterviewmodel.h"
+#include "features/models/sectorscanparameterviewmodel.h"
+#include "features/models/trpparameterviewmodel.h"
 
 // Feature Controllers
-#include "../features/controllers/applicationcontroller.h"
-#include "../features/controllers/mainmenucontroller.h"
-#include "../features/controllers/reticlemenucontroller.h"
-#include "../features/controllers/colormenucontroller.h"
-#include "../features/controllers/osdcontroller.h"
-#include "../features/controllers/zeroingcontroller.h"
-#include "../features/controllers/windagecontroller.h"
-#include "../features/controllers/environmentalcontroller.h"
-#include "../features/controllers/zonedefinitioncontroller.h"
-#include "../features/controllers/systemstatuscontroller.h"
-#include "../features/controllers/aboutcontroller.h"
+#include "features/controllers/applicationcontroller.h"
+#include "features/controllers/mainmenucontroller.h"
+#include "features/controllers/reticlemenucontroller.h"
+#include "features/controllers/colormenucontroller.h"
+#include "features/controllers/osdcontroller.h"
+#include "features/controllers/zeroingcontroller.h"
+#include "features/controllers/windagecontroller.h"
+#include "features/controllers/environmentalcontroller.h"
+#include "features/controllers/zonedefinitioncontroller.h"
+#include "features/controllers/systemstatuscontroller.h"
+#include "features/controllers/aboutcontroller.h"
+
+
+
 
 #include <QDebug> // Example include, add others as needed
 #include <QMessageBox>
@@ -158,9 +161,11 @@ MainWindow::MainWindow(GimbalController *gimbal,
 
     m_reticleMenuController->setViewModel(m_reticleMenuViewModel);
     m_reticleMenuController->setStateModel(m_stateModel);
+    m_reticleMenuController->setOsdViewModel(m_osdViewModel);
 
     m_colorMenuController->setViewModel(m_colorMenuViewModel);
     m_colorMenuController->setStateModel(m_stateModel);
+    m_colorMenuController->setOsdViewModel(m_osdViewModel);
 
     m_zeroingController->setViewModel(m_zeroingViewModel);
     m_zeroingController->setStateModel(m_stateModel);

@@ -1,5 +1,5 @@
 #include "ledcontroller.h"
-#include "../../src/devices/plc21device.h"
+#include "../src/devices/plc21device.h"
 
 LedController::LedController(SystemStateModel* systemStateModel, Plc21Device* plc21Device, QObject *parent)
     : QObject(parent),

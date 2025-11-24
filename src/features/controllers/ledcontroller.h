@@ -2,7 +2,7 @@
 #define LEDCONTROLLER_H
 
 #include <QObject>
-#include "../../src/models/systemstatemodel.h"
+#include "../src/models/systemstatemodel.h"
 
 class Plc21Device;
 

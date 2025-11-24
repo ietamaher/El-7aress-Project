@@ -45,7 +45,7 @@ INCLUDEPATH += "/usr/include/gstreamer-1.0"
 
 # Add project directories for includes
 INCLUDEPATH += .              # src/ directory (for models/systemstatemodel.h, etc.)
-INCLUDEPATH += ../features    # features/ directory (for feature architecture)
+#INCLUDEPATH += ../features    # features/ directory (for feature architecture)
 
 CONFIG += link_pkgconfig
 PKGCONFIG += gstreamer-1.0
@@ -118,30 +118,30 @@ SOURCES += \
     utils/colorutils.cpp \
     utils/inference.cpp \
     utils/reticleaimpointcalculator.cpp \
-    ../features/models/osdviewmodel.cpp \
-    ../features/models/menuviewmodel.cpp \
-    ../features/models/zeroingviewmodel.cpp \
-    ../features/models/windageviewmodel.cpp \
-    ../features/models/environmentalviewmodel.cpp \
-    ../features/models/zonedefinitionviewmodel.cpp \
-    ../features/models/zonemapviewmodel.cpp \
-    ../features/models/systemstatusviewmodel.cpp \
-    ../features/models/aboutviewmodel.cpp \
-    ../features/models/areazoneparameterviewmodel.cpp \
-    ../features/models/sectorscanparameterviewmodel.cpp \
-    ../features/models/trpparameterviewmodel.cpp \
-    ../features/controllers/applicationcontroller.cpp \
-    ../features/controllers/mainmenucontroller.cpp \
-    ../features/controllers/reticlemenucontroller.cpp \
-    ../features/controllers/colormenucontroller.cpp \
-    ../features/controllers/osdcontroller.cpp \
-    ../features/controllers/zeroingcontroller.cpp \
-    ../features/controllers/windagecontroller.cpp \
-    ../features/controllers/environmentalcontroller.cpp \
-    ../features/controllers/zonedefinitioncontroller.cpp \
-    ../features/controllers/systemstatuscontroller.cpp \
-    ../features/controllers/aboutcontroller.cpp \
-    ../features/controllers/ledcontroller.cpp
+    features/models/osdviewmodel.cpp \
+    features/models/menuviewmodel.cpp \
+    features/models/zeroingviewmodel.cpp \
+    features/models/windageviewmodel.cpp \
+    features/models/environmentalviewmodel.cpp \
+    features/models/zonedefinitionviewmodel.cpp \
+    features/models/zonemapviewmodel.cpp \
+    features/models/systemstatusviewmodel.cpp \
+    features/models/aboutviewmodel.cpp \
+    features/models/areazoneparameterviewmodel.cpp \
+    features/models/sectorscanparameterviewmodel.cpp \
+    features/models/trpparameterviewmodel.cpp \
+    features/controllers/applicationcontroller.cpp \
+    features/controllers/mainmenucontroller.cpp \
+    features/controllers/reticlemenucontroller.cpp \
+    features/controllers/colormenucontroller.cpp \
+    features/controllers/osdcontroller.cpp \
+    features/controllers/zeroingcontroller.cpp \
+    features/controllers/windagecontroller.cpp \
+    features/controllers/environmentalcontroller.cpp \
+    features/controllers/zonedefinitioncontroller.cpp \
+    features/controllers/systemstatuscontroller.cpp \
+    features/controllers/aboutcontroller.cpp \
+    features/controllers/ledcontroller.cpp
 
 HEADERS += \
     controllers/cameracontroller.h \
@@ -207,31 +207,31 @@ HEADERS += \
     utils/inference.h \
     utils/reticleaimpointcalculator.h \
     utils/targetstate.h \
-    ../features/models/osdviewmodel.h \
-    ../features/models/menuviewmodel.h \
-    ../features/models/zeroingviewmodel.h \
-    ../features/models/windageviewmodel.h \
-    ../features/models/environmentalviewmodel.h \
-    ../features/models/zonedefinitionviewmodel.h \
-    ../features/models/zonemapviewmodel.h \
-    ../features/models/systemstatusviewmodel.h \
-    ../features/models/aboutviewmodel.h \
-    ../features/models/historyviewmodel.h \
-    ../features/models/areazoneparameterviewmodel.h \
-    ../features/models/sectorscanparameterviewmodel.h \
-    ../features/models/trpparameterviewmodel.h \
-    ../features/controllers/applicationcontroller.h \
-    ../features/controllers/mainmenucontroller.h \
-    ../features/controllers/reticlemenucontroller.h \
-    ../features/controllers/colormenucontroller.h \
-    ../features/controllers/osdcontroller.h \
-    ../features/controllers/zeroingcontroller.h \
-    ../features/controllers/windagecontroller.h \
-    ../features/controllers/environmentalcontroller.h \
-    ../features/controllers/zonedefinitioncontroller.h \
-    ../features/controllers/systemstatuscontroller.h \
-    ../features/controllers/aboutcontroller.h \
-    ../features/controllers/ledcontroller.h
+    features/models/osdviewmodel.h \
+    features/models/menuviewmodel.h \
+    features/models/zeroingviewmodel.h \
+    features/models/windageviewmodel.h \
+    features/models/environmentalviewmodel.h \
+    features/models/zonedefinitionviewmodel.h \
+    features/models/zonemapviewmodel.h \
+    features/models/systemstatusviewmodel.h \
+    features/models/aboutviewmodel.h \
+    features/models/historyviewmodel.h \
+    features/models/areazoneparameterviewmodel.h \
+    features/models/sectorscanparameterviewmodel.h \
+    features/models/trpparameterviewmodel.h \
+    features/controllers/applicationcontroller.h \
+    features/controllers/mainmenucontroller.h \
+    features/controllers/reticlemenucontroller.h \
+    features/controllers/colormenucontroller.h \
+    features/controllers/osdcontroller.h \
+    features/controllers/zeroingcontroller.h \
+    features/controllers/windagecontroller.h \
+    features/controllers/environmentalcontroller.h \
+    features/controllers/zonedefinitioncontroller.h \
+    features/controllers/systemstatuscontroller.h \
+    features/controllers/aboutcontroller.h \
+    features/controllers/ledcontroller.h
 
 FORMS += \
     ui/mainwindow.ui
