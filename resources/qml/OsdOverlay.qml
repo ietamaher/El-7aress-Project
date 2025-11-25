@@ -232,11 +232,10 @@ Item {
             color: "white"
         }
 
-        SequentialAnimation on opacity {
-            running: getGunArmedStatus()
-            loops: Animation.Infinite
-            NumberAnimation { from: 1.0; to: 0.6; duration: 700 }
-            NumberAnimation { from: 0.6; to: 1.0; duration: 700 }
+        // Memory-efficient opacity control (no animation accumulation)
+        opacity: getGunArmedStatus() ? 0.8 : 1.0
+        Behavior on opacity {
+            NumberAnimation { duration: 200 }
         }
     }
 
@@ -825,12 +824,8 @@ Item {
             horizontalAlignment: Text.AlignHCenter
         }
 
-        SequentialAnimation on opacity {
-            running: noFireWarning.visible
-            loops: Animation.Infinite
-            NumberAnimation { from: 0.95; to: 0.5; duration: 500 }
-            NumberAnimation { from: 0.5; to: 0.95; duration: 500 }
-        }
+        // Fixed opacity (removed infinite animation to prevent memory leak)
+        opacity: 0.95
     }
 
     // ========================================================================
@@ -882,14 +877,8 @@ Item {
             font.pixelSize: 16
             font.family: primaryFont
             color: accentColor
-
-            // Blinking animation
-            SequentialAnimation on opacity {
-                running: parent.parent.visible
-                loops: Animation.Infinite
-                NumberAnimation { from: 1.0; to: 0.7; duration: 800 }
-                NumberAnimation { from: 0.7; to: 1.0; duration: 800 }
-            }
+            // Fixed opacity (removed infinite animation to prevent memory leak)
+            opacity: 0.9
         }
     }
 
@@ -959,14 +948,8 @@ Item {
                 font.bold: true
                 font.family: primaryFont
                 color: cautionColor
-
-                // Blinking animation
-                SequentialAnimation on opacity {
-                    running: parent.parent.parent.visible
-                    loops: Animation.Infinite
-                    NumberAnimation { from: 1.0; to: 0.4; duration: 600 }
-                    NumberAnimation { from: 0.4; to: 1.0; duration: 600 }
-                }
+                // Fixed opacity (removed infinite animation to prevent memory leak)
+                opacity: 1.0
             }
         }
     }
