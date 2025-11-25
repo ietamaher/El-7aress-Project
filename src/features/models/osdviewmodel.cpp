@@ -587,6 +587,12 @@ void OsdViewModel::updateDetectionDisplay(bool enabled)
 
 void OsdViewModel::updateDetectionBoxes(const std::vector<YoloDetection>& detections)
 {
+    // ⚠️ MEMORY LEAK FIX: Skip entirely if empty and already empty
+    // Prevents allocating 15 empty QVariantList objects per second when detection is disabled
+    if (detections.empty() && m_detectionBoxes.isEmpty()) {
+        return;  // No changes needed
+    }
+
     // Convert YoloDetections to QVariantList for QML
     QVariantList newBoxes;
 
@@ -605,9 +611,11 @@ void OsdViewModel::updateDetectionBoxes(const std::vector<YoloDetection>& detect
         newBoxes.append(box);
     }
 
-    // Always update (even if empty to clear old boxes)
-    m_detectionBoxes = newBoxes;
-    emit detectionBoxesChanged();
+    // Only update if the list actually changed
+    if (m_detectionBoxes != newBoxes) {
+        m_detectionBoxes = newBoxes;
+        emit detectionBoxesChanged();
+    }
 }
 
 // ============================================================================

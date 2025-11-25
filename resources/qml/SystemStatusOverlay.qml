@@ -13,20 +13,8 @@ Rectangle {
     color: Qt.rgba(0, 0, 0, 0.7)
     anchors.fill: parent
 
-    // ⚠️ PERFORMANCE FIX: Throttle UI updates to 0.5 second intervals
-    // This prevents excessive property binding updates when overlay is visible
-    property bool updateEnabled: false
-    Timer {
-        id: updateThrottleTimer
-        interval: 500  // 0.5 seconds = 2 Hz update rate
-        running: statusroot.visible
-        repeat: true
-        onTriggered: {
-            updateEnabled = true
-            // Reset after QML processes bindings (next frame)
-            Qt.callLater(function() { updateEnabled = false })
-        }
-    }
+    // Note: Update throttling is now handled in C++ SystemStatusController
+    // No QML-side throttling needed (prevents Qt.callLater closure accumulation)
 
     // Main content container
     Rectangle {
