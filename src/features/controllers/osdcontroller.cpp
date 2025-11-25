@@ -8,6 +8,7 @@ OsdController::OsdController(QObject *parent)
     : QObject(parent)
     , m_viewModel(nullptr)
     , m_stateModel(nullptr)
+    , m_frameCounter(0)
     , m_startupTimer(new QTimer(this))
     , m_staticDetectionTimer(new QTimer(this))
     , m_startupState(StartupState::Idle)
@@ -188,6 +189,13 @@ void OsdController::onFrameDataReady(const FrameData& frmdata)
     if (frmdata.cameraIndex != m_activeCameraIndex) {
         // Ignore frames from inactive camera
         return;
+    }
+
+    // ⭐ PERFORMANCE FIX: Throttle OSD updates to reduce memory/CPU usage
+    // Update every FRAME_UPDATE_INTERVAL frames (~15 FPS instead of 30)
+    m_frameCounter++;
+    if (m_frameCounter % FRAME_UPDATE_INTERVAL != 0) {
+        return;  // Skip this frame
     }
 
     // === BASIC OSD DATA ===

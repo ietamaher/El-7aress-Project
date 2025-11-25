@@ -77,6 +77,10 @@ private:
 
     int m_activeCameraIndex;
 
+    // Frame update throttling (reduce update frequency to save CPU/memory)
+    int m_frameCounter;
+    static constexpr int FRAME_UPDATE_INTERVAL = 2;  // Update OSD every 2 frames (~15 FPS instead of 30)
+
     // Startup sequence state machine
     QTimer* m_startupTimer;
     QTimer* m_staticDetectionTimer;
