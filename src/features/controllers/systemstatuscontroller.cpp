@@ -8,6 +8,8 @@ SystemStatusController::SystemStatusController(QObject *parent)
     , m_viewModel(nullptr)
     , m_stateModel(nullptr)
 {
+    // Start throttle timer
+    m_updateThrottleTimer.start();
 }
 
 void SystemStatusController::setViewModel(SystemStatusViewModel* viewModel)
@@ -76,6 +78,13 @@ void SystemStatusController::hide()
 void SystemStatusController::onSystemStateChanged(const SystemStateData& data)
 {
     if (!m_viewModel) return;
+
+    // ⚠️ PERFORMANCE FIX: Throttle updates to 0.5 second intervals (2 Hz)
+    // SystemStateModel::dataChanged fires at ~30 Hz, causing excessive ViewModel updates
+    if (m_updateThrottleTimer.elapsed() < UPDATE_INTERVAL_MS) {
+        return;  // Skip this update
+    }
+    m_updateThrottleTimer.restart();
 
     // Update Azimuth Servo
     m_viewModel->updateAzimuthServo(

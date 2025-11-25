@@ -2,6 +2,7 @@
 #define SYSTEMSTATUSCONTROLLER_H
 
 #include <QObject>
+#include <QElapsedTimer>
 
 class SystemStatusViewModel;
 class SystemStateModel;
@@ -44,6 +45,10 @@ private:
 
     SystemStatusViewModel* m_viewModel;
     SystemStateModel* m_stateModel;
+
+    // Update throttling (0.5 second intervals to prevent memory leak)
+    QElapsedTimer m_updateThrottleTimer;
+    static constexpr qint64 UPDATE_INTERVAL_MS = 500;  // 0.5 seconds = 2 Hz
 };
 
 #endif // SYSTEMSTATUSCONTROLLER_H
