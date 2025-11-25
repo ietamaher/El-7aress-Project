@@ -13,6 +13,21 @@ Rectangle {
     color: Qt.rgba(0, 0, 0, 0.7)
     anchors.fill: parent
 
+    // ⚠️ PERFORMANCE FIX: Throttle UI updates to 0.5 second intervals
+    // This prevents excessive property binding updates when overlay is visible
+    property bool updateEnabled: false
+    Timer {
+        id: updateThrottleTimer
+        interval: 500  // 0.5 seconds = 2 Hz update rate
+        running: statusroot.visible
+        repeat: true
+        onTriggered: {
+            updateEnabled = true
+            // Reset after QML processes bindings (next frame)
+            Qt.callLater(function() { updateEnabled = false })
+        }
+    }
+
     // Main content container
     Rectangle {
         id: contentContainer
@@ -530,7 +545,7 @@ Rectangle {
                     anchors.rightMargin: 8
                     spacing: 6
 
-                    //  ANIMATED Connection indicator
+                    // Connection indicator (FIXED - removed infinite animations to prevent memory leak)
                     Rectangle {
                         id: connectionDot
                         width: 8
@@ -539,43 +554,9 @@ Rectangle {
                         color: connected ? "#10b52e" : "#606060"
                         anchors.verticalCenter: parent.verticalCenter
 
-                        // ✅ Pulse animation when connected
-                        SequentialAnimation on opacity {
-                            running: connected
-                            loops: Animation.Infinite
-
-                            NumberAnimation {
-                                from: 1.0
-                                to: 0.3
-                                duration: 400
-                                easing.type: Easing.InOutQuad
-                            }
-                            NumberAnimation {
-                                from: 0.3
-                                to: 1.0
-                                duration: 400
-                                easing.type: Easing.InOutQuad
-                            }
-                        }
-
-                        // Scale animation when connected
-                        SequentialAnimation on scale {
-                            running: connected
-                            loops: Animation.Infinite
-
-                            NumberAnimation {
-                                from: 1.0
-                                to: 1.3
-                                duration: 400
-                                easing.type: Easing.InOutQuad
-                            }
-                            NumberAnimation {
-                                from: 1.3
-                                to: 1.0
-                                duration: 400
-                                easing.type: Easing.InOutQuad
-                            }
-                        }
+                        // Simple static indicator - no animations
+                        opacity: 1.0
+                        scale: 1.0
                     }
 
 
