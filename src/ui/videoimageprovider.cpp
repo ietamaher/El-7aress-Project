@@ -35,14 +35,15 @@ void VideoImageProvider::updateFrame(const QImage &frame)
         return;
     }
 
-    // DEBUG: Log frame updates
-    /*static int updateCount = 0;
-    if (updateCount % 30 == 0) { // Log every 30th update (~1 second at 30fps)
-        qDebug() << "[VideoImageProvider] updateFrame called - size:" << frame.size()
-                 << "format:" << frame.format()
-                 << "bytesPerLine:" << frame.bytesPerLine();
+    // DEBUG: Log frame format to detect conversions
+    static int frameCount = 0;
+    static QImage::Format lastFormat = QImage::Format_Invalid;
+    if (frame.format() != lastFormat || frameCount % 300 == 0) {
+        qDebug() << "[VideoImageProvider] Frame format:" << frame.format()
+                 << "Size:" << frame.size() << "Count:" << frameCount;
+        lastFormat = frame.format();
     }
-    updateCount++;*/
+    frameCount++;
 
     QMutexLocker locker(&m_mutex);
 
@@ -53,8 +54,8 @@ void VideoImageProvider::updateFrame(const QImage &frame)
         // Use implicit sharing (no deep copy unless frame is modified elsewhere)
         m_currentFrame = frame;
     } else {
-        // Convert to RGB888 for QML compatibility
-        qDebug() << "[VideoImageProvider] Converting frame from format" << frame.format() << "to RGB888";
+        // ⚠️ PERFORMANCE: This creates a NEW QImage (potential leak if called frequently)
+        qWarning() << "[VideoImageProvider] Converting frame from format" << frame.format() << "to RGB888";
         m_currentFrame = frame.convertToFormat(QImage::Format_RGB888);
     }
 }
