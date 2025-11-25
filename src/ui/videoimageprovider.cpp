@@ -14,26 +14,18 @@ VideoImageProvider::VideoImageProvider()
 
 QImage VideoImageProvider::requestImage(const QString &id, QSize *size, const QSize &requestedSize)
 {
+    Q_UNUSED(id);
     Q_UNUSED(requestedSize);
 
     QMutexLocker locker(&m_mutex);
-
-    // DEBUG: Log every request
-    static int requestCount = 0;
-    /*if (requestCount % 30 == 0) { // Log every 30th request (~1 second at 30fps)
-        qDebug() << "[VideoImageProvider] requestImage called - id:" << id
-                 << "size:" << m_currentFrame.size()
-                 << "format:" << m_currentFrame.format()
-                 << "isNull:" << m_currentFrame.isNull();
-    }*/
-    requestCount++;
 
     if (size) {
         *size = m_currentFrame.size();
     }
 
-    // Return a copy to avoid threading issues
-    return m_currentFrame.copy();
+    // Return using implicit sharing (copy-on-write) - no deep copy unless modified
+    // This saves ~2.3 MB per request × 30 fps = ~70 MB/sec
+    return m_currentFrame;
 }
 
 void VideoImageProvider::updateFrame(const QImage &frame)
@@ -58,7 +50,8 @@ void VideoImageProvider::updateFrame(const QImage &frame)
     if (frame.format() == QImage::Format_RGB888 ||
         frame.format() == QImage::Format_ARGB32 ||
         frame.format() == QImage::Format_ARGB32_Premultiplied) {
-        m_currentFrame = frame.copy();
+        // Use implicit sharing (no deep copy unless frame is modified elsewhere)
+        m_currentFrame = frame;
     } else {
         // Convert to RGB888 for QML compatibility
         qDebug() << "[VideoImageProvider] Converting frame from format" << frame.format() << "to RGB888";

@@ -22,16 +22,21 @@ Rectangle {
         anchors.fill: parent
         fillMode: Image.PreserveAspectFit
         source: "image://video/camera"
-        cache: false // Don't cache, we want fresh frames
+        cache: false
+        asynchronous: false  // Synchronous to prevent accumulation
+
+        // Counter for URL refreshing (cycles 0-99 to limit URL accumulation)
+        property int refreshCounter: 0
 
         // Timer to refresh video feed
         Timer {
-            interval: 33 // ~30 FPS (adjust based on camera framerate)
+            interval: 33 // ~30 FPS
             running: true
             repeat: true
             onTriggered: {
-                // Force QML to request new image from provider
-                videoDisplay.source = "image://video/camera?" + Date.now()
+                // Cycle counter to limit URL accumulation (only 100 unique URLs)
+                videoDisplay.refreshCounter = (videoDisplay.refreshCounter + 1) % 100
+                videoDisplay.source = "image://video/camera?c=" + videoDisplay.refreshCounter
             }
         }
 
